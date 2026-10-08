@@ -1,20 +1,15 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os
-
-# Имя файла для базы данных
-DATA_FILE = "workout_diary.csv"
 
 # Настройка страницы под мобильные телефоны
 st.set_page_config(page_title="Дневник тренировок", page_icon="🏋️‍♂️", layout="wide")
 
-# Загрузка или создание базы данных
-if os.path.exists(DATA_FILE):
-    df = pd.read_csv(DATA_FILE)
-    df["Дата"] = df["Дата"].astype(str)
-else:
-    df = pd.DataFrame(columns=["Дата", "Упражнение", "Результат"])
+# Инициализация постоянной памяти в облаке Streamlit
+if "workout_db" not in st.session_state:
+    st.session_state.workout_db = pd.DataFrame(columns=["Дата", "Упражнение", "Результат"])
+
+df = st.session_state.workout_db
 
 st.title("🏋️‍♂️ Мой Блокнот Тренировок")
 
@@ -27,8 +22,11 @@ with tab_view:
     
     if not df.empty:
         try:
-            # Превращаем список в таблицу "Упражнение | Дата1 | Дата2..."
-            pivot_df = df.pivot(index="Упражнение", columns="Дата", values="Результат").reset_index()
+            # Группируем, если за один день ввели одно упражнение несколько раз (например, разминка и рабочий вес)
+            grouped = df.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: " | ".join(x)).reset_index()
+            
+            # Превращаем плоский список в таблицу "Упражнение | Дата1 | Дата2..."
+            pivot_df = grouped.pivot(index="Упражнение", columns="Дата", values="Результат").reset_index()
             
             # Сортируем даты-столбцы по порядку (новые дни будут добавляться справа)
             date_cols = sorted([col for col in pivot_df.columns if col != "Упражнение"])
@@ -54,29 +52,13 @@ with tab_view:
             )
             
         except Exception as e:
-            # Если за один день ввели одно упражнение несколько раз (например, разминка и рабочий вес)
-            grouped = df.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: " | ".join(x)).reset_index()
-            pivot_df = grouped.pivot(index="Упражнение", columns="Дата", values="Результат").reset_index()
-            pivot_df = pivot_df.fillna("—")
-            
-            st.data_editor(
-                pivot_df, 
-                use_container_width=True, 
-                hide_index=True,
-                disabled=True,
-                column_config={
-                    "Упражнение": st.column_config.TextColumn(
-                        "Упражнение", 
-                        pinned=True, 
-                        width="medium"
-                    )
-                }
-            )
+            st.error(f"Ошибка при сборке таблицы: {e}")
+            st.dataframe(df) # Показываем сырые данные в случае сбоя
             
         st.write("") 
         if st.button("❌ Удалить самую последнюю запись", type="secondary", use_container_width=True):
-            df = df.drop(df.index[-1])
-            df.to_csv(DATA_FILE, index=False)
+            st.session_state.workout_db = df.drop(df.index[-1])
+            st. those_rows = st.session_state.workout_db.reset_index(drop=True)
             st.rerun()
     else:
         st.info("Таблица пуста. Перейдите на вкладку 'Добавить запись', чтобы внесить первые данные.")
@@ -120,8 +102,9 @@ with tab_add:
                 if comment:
                     res_string += f" ({comment})"
                 
+                # Добавляем в общую базу данных в памяти сессии
                 new_row = pd.DataFrame([[date_str, exercise.strip(), res_string]], columns=["Дата", "Упражнение", "Результат"])
-                df = pd.concat([df, new_row], ignore_index=True)
-                df.to_csv(DATA_FILE, index=False)
+                st.session_state.workout_db = pd.concat([df, new_row], ignore_index=True)
+                
                 st.success(f"Добавлено: {exercise} -> {res_string}")
                 st.rerun()
