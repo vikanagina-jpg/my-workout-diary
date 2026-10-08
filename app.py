@@ -91,7 +91,7 @@ with tab_view:
                 excel_pivot.to_excel(writer, index=False, sheet_name='Тренировки')
             
             st.download_button(
-                label="📥 Скачать таблицу в Excel (для отправки)",
+                label="📥 Скачать таблицу в Excel",
                 data=buffer.getvalue(),
                 file_name=f"workout_report_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
