@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -1329,4 +1328,4 @@ with tab_add:
                     f"{final_exercise} → "
                     f"{res_string}"
                 )
-```
+
