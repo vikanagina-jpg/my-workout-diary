@@ -33,13 +33,13 @@ with tab_view:
             df["Упражнение"] = df["Упражнение"].astype(str)
             df["Результат"] = df["Результат"].astype(str)
             
-            # ИСПРАВЛЕНИЕ: Теперь объединяем записи через перенос строки \n вместо палочки |
+            # Объединяем подходы через обычный перенос строки
             grouped = df.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: "\n".join(x)).reset_index()
             
             # Превращаем в кросс-таблицу
             pivot_df = grouped.pivot(index="Упражнение", columns="Дата", values="Результат").reset_index()
             
-            # Сортируем даты по порядку
+            # Сортируем даты по порядку (новые будут справа)
             date_cols = sorted([col for col in pivot_df.columns if col != "Упражнение"])
             final_cols = ["Упражнение"] + date_cols
             pivot_df = pivot_df[final_cols]
@@ -47,26 +47,11 @@ with tab_view:
             # Заменяем пустоты на прочерки
             pivot_df = pivot_df.fillna("—")
             
-            # Динамическая конфигурация столбцов для включения переноса строк
-            col_config = {
-                "Упражнение": st.column_config.TextColumn(
-                    "Упражнение", 
-                    pinned=True, 
-                    width="medium"
-                )
-            }
-            
-            # Включаем многострочный режим отображения для каждого столбца с датой
-            for col in date_cols:
-                col_config[col] = st.column_config.TextColumn(col, wrap_text=True)
-            
-            # Вывод таблицы с поддержкой многострочного текста
-            st.data_editor(
+            # Безопасный вывод таблицы с поддержкой переносов строк на любых версиях Streamlit
+            st.dataframe(
                 pivot_df, 
                 use_container_width=True, 
-                hide_index=True,
-                disabled=True, 
-                column_config=col_config
+                hide_index=True
             )
             
         except Exception as e:
