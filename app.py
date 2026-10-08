@@ -9,7 +9,7 @@ st.set_page_config(page_title="Дневник тренировок", page_icon="
 # Имя файла для персистентного хранения данных в облаке
 DATA_FILE = "workout_diary_storage.csv"
 
-# Логика загрузки данных (проверяем локальный файл, чтобы сессия не сбрасывалась)
+# Логика загрузки данных
 if "workout_db" not in st.session_state:
     if os.path.exists(DATA_FILE):
         st.session_state.workout_db = pd.read_csv(DATA_FILE)
@@ -20,10 +20,10 @@ df = st.session_state.workout_db
 
 st.title("🏋️‍♂️ Мой Блокнот Тренировок")
 
-# Поменяли вкладки местами: теперь при открытии СРАЗУ видна ваша таблица
+# Вкладки приложения
 tab_view, tab_add = st.tabs(["📋 Таблица тренировок", "➕ Добавить запись"])
 
-# --- ВКЛАДКА 1: ОТОБРАЖЕНИЕ ТАБЛИЦЫ (КАК В БЛОКНОТЕ) ---
+# --- ВКЛАДКА 1: ОТОБРАЖЕНИЕ ТАБЛИЦЫ ---
 with tab_view:
     st.subheader("Журнал по дням")
     
@@ -33,10 +33,10 @@ with tab_view:
             df["Упражнение"] = df["Упражнение"].astype(str)
             df["Результат"] = df["Результат"].astype(str)
             
-            # Объединяем дубли, если за один день ввели одно упражнение несколько раз
-            grouped = df.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: " | ".join(x)).reset_index()
+            # ИСПРАВЛЕНИЕ: Теперь объединяем записи через перенос строки \n вместо палочки |
+            grouped = df.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: "\n".join(x)).reset_index()
             
-            # Превращаем в кросс-таблицу "Упражнение | Дата1 | Дата2..."
+            # Превращаем в кросс-таблицу
             pivot_df = grouped.pivot(index="Упражнение", columns="Дата", values="Результат").reset_index()
             
             # Сортируем даты по порядку
@@ -47,19 +47,26 @@ with tab_view:
             # Заменяем пустоты на прочерки
             pivot_df = pivot_df.fillna("—")
             
-            # Вывод таблицы с намертво закрепленным левым столбцом
+            # Динамическая конфигурация столбцов для включения переноса строк
+            col_config = {
+                "Упражнение": st.column_config.TextColumn(
+                    "Упражнение", 
+                    pinned=True, 
+                    width="medium"
+                )
+            }
+            
+            # Включаем многострочный режим отображения для каждого столбца с датой
+            for col in date_cols:
+                col_config[col] = st.column_config.TextColumn(col, wrap_text=True)
+            
+            # Вывод таблицы с поддержкой многострочного текста
             st.data_editor(
                 pivot_df, 
                 use_container_width=True, 
                 hide_index=True,
                 disabled=True, 
-                column_config={
-                    "Упражнение": st.column_config.TextColumn(
-                        "Упражнение", 
-                        pinned=True, 
-                        width="medium"
-                    )
-                }
+                column_config=col_config
             )
             
         except Exception as e:
@@ -83,19 +90,15 @@ with tab_add:
         date_input = st.date_input("Дата тренировки", datetime.now())
         date_str = date_input.strftime("%d.%m") 
         
-        # Получаем список уже существующих упражнений для автозаполнения
         existing_exercises = sorted(df["Упражнение"].unique().tolist()) if not df.empty else []
         
-        # Единое умное поле ввода вместо ломающихся переключателей
         exercise = st.selectbox(
             "Начните вводить или выберите упражнение:",
             options=[""] + existing_exercises,
-            index=0,
-            help="Если упражнения нет в списке, выберите опцию 'Ввести вручную' ниже"
+            index=0
         )
         
-        # Дополнительное поле на случай, если нужно написать абсолютно новое слово
-        custom_exercise = st.text_input("ИЛИ введите НОВОЕ упражнение (если его нет в списке выше):", placeholder="Например: Жим лежа")
+        custom_exercise = st.text_input("ИЛИ введите НОВОЕ упражнение:", placeholder="Например: Жим лежа")
         
         st.write("---")
         
@@ -112,22 +115,18 @@ with tab_add:
         submit_btn = st.form_submit_button("💾 Записать в таблицу", use_container_width=True, type="primary")
         
         if submit_btn:
-            # Определяем, какое поле заполнено
             final_exercise = custom_exercise.strip() if custom_exercise.strip() else exercise
             
             if not final_exercise:
-                st.error("Пожалуйста, выберите упражнение из списка или введите новое в поле ниже!")
+                st.error("Пожалуйста, выберите или введите упражнение!")
             else:
                 weight_str = f"{int(weight)}" if weight.is_integer() else f"{weight}"
                 res_string = f"{sets}/{reps} {weight_str}"
                 if comment:
                     res_string += f" ({comment})"
                 
-                # Добавляем данные
                 new_row = pd.DataFrame([[date_str, final_exercise, res_string]], columns=["Дата", "Упражнение", "Результат"])
                 st.session_state.workout_db = pd.concat([st.session_state.workout_db, new_row], ignore_index=True)
-                
-                # Сохраняем в файл на сервере, чтобы ничего не терялось
                 st.session_state.workout_db.to_csv(DATA_FILE, index=False)
                 
                 st.success(f"Добавлено: {final_exercise} -> {res_string}")
