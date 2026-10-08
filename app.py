@@ -5,39 +5,40 @@ import io
 import os
 
 # Настройка страницы под мобильные телефоны
-st.set_page_config(page_title="Дневник тренировок", page_icon="🎀", layout="wide")
+st.set_page_config(page_title="Дневник тренировок", page_icon="🎃", layout="wide")
 
 # ============================================================
-# 🎀 РОЗОВЫЙ ДИЗАЙН (только оформление, логика ниже не тронута)
+# 🍂 ОСЕННИЙ ДИЗАЙН (только оформление, логика ниже не тронута)
 # ============================================================
-PINK_CSS = """
+AUTUMN_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=Pacifico&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=Lobster&display=swap');
 
 :root {
-    --bg: #FFF0F6;
+    --bg: #FFF1DC;
     --card: #FFFFFF;
-    --pink-soft: #FFD9E8;
-    --pink-mid: #FF9EC4;
-    --pink-main: #F0568F;
-    --pink-deep: #C2306C;
-    --text: #5A1B3A;
+    --sand: #FFDDB0;
+    --amber: #F5B13C;
+    --pumpkin: #EE7A1F;
+    --pumpkin-deep: #B8480B;
+    --brown: #4A2511;
+    --leaf: #6F7F2B;
 }
 
 html, body, [class*="css"], .stApp, .stMarkdown, label, p, span, div {
     font-family: 'Nunito', 'Segoe UI', Arial, sans-serif;
 }
 
-/* Фон приложения: нежный розовый с лёгкими сердечками-пятнами */
+/* Фон: тёплый закат с пятнами осенних листьев */
 .stApp {
     background:
-        radial-gradient(circle at 12% 8%, #FFE0EE 0, transparent 38%),
-        radial-gradient(circle at 92% 30%, #FFE8F2 0, transparent 34%),
+        radial-gradient(circle at 10% 6%, #FFD9A6 0, transparent 36%),
+        radial-gradient(circle at 94% 34%, #FFE7C2 0, transparent 34%),
+        radial-gradient(circle at 20% 96%, #F9D49A 0, transparent 30%),
         var(--bg);
-    color: var(--text);
+    color: var(--brown);
 }
 
-/* Убираем лишнее у Streamlit и ограничиваем ширину для удобного чтения */
 header[data-testid="stHeader"] { background: transparent; }
 footer { visibility: hidden; }
 .block-container {
@@ -45,34 +46,34 @@ footer { visibility: hidden; }
     padding: 1rem 0.9rem 3rem 0.9rem !important;
 }
 
-/* Шапка с котиком */
-.cat-header {
+/* Шапка с тыковкой */
+.pumpkin-header {
     display: flex; align-items: center; gap: 14px;
-    background: linear-gradient(135deg, #FFC2DA 0%, #FF9EC4 100%);
+    background: linear-gradient(135deg, #7A3B14 0%, #4A2511 100%);
     border-radius: 26px;
     padding: 14px 18px;
     margin: 4px 0 18px 0;
-    box-shadow: 0 8px 20px rgba(240, 86, 143, 0.25);
-    border: 3px solid #FFFFFF;
+    box-shadow: 0 8px 20px rgba(74, 37, 17, 0.35);
+    border: 3px solid #F5B13C;
 }
-.cat-header svg { flex: 0 0 auto; width: 84px; height: 76px; }
-.cat-header .title {
-    font-family: 'Pacifico', cursive;
-    font-size: 26px; line-height: 1.15;
-    color: #FFFFFF;
-    text-shadow: 0 2px 0 rgba(194, 48, 108, 0.45);
+.pumpkin-header svg { flex: 0 0 auto; width: 84px; height: 78px; }
+.pumpkin-header .title {
+    font-family: 'Lobster', cursive;
+    font-size: 27px; line-height: 1.15;
+    color: #FFC76B;
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
 }
-.cat-header .subtitle {
-    font-size: 14px; font-weight: 700; color: #7A1F48; margin-top: 4px;
+.pumpkin-header .subtitle {
+    font-size: 14px; font-weight: 700; color: #FFE3BC; margin-top: 4px;
 }
 
 /* Подзаголовки */
 h2, h3, [data-testid="stHeading"] h3 {
-    color: var(--pink-deep) !important;
+    color: var(--pumpkin-deep) !important;
     font-weight: 800 !important;
 }
 
-/* Вкладки: большие розовые «таблетки», удобно нажимать пальцем */
+/* Вкладки */
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px; background: transparent; border-bottom: none;
 }
@@ -81,48 +82,48 @@ h2, h3, [data-testid="stHeading"] h3 {
     height: 48px;
     justify-content: center;
     background: #FFFFFF;
-    border: 2px solid var(--pink-soft);
+    border: 2px solid var(--sand);
     border-radius: 16px;
-    color: var(--pink-deep);
+    color: var(--pumpkin-deep);
     font-weight: 800;
 }
 .stTabs [data-baseweb="tab"] p { font-size: 15px; font-weight: 800; }
 .stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, #FF8DBA, #F0568F) !important;
-    border-color: #F0568F !important;
+    background: linear-gradient(135deg, #F5A03A, #E2650F) !important;
+    border-color: #E2650F !important;
 }
 .stTabs [aria-selected="true"] p { color: #FFFFFF !important; }
 .stTabs [data-baseweb="tab-highlight"],
 .stTabs [data-baseweb="tab-border"] { display: none; }
 
-/* Форма добавления — как розовая карточка */
+/* Форма добавления */
 [data-testid="stForm"] {
     background: var(--card);
-    border: 2px solid var(--pink-soft);
+    border: 2px solid var(--sand);
     border-radius: 24px;
     padding: 18px 16px;
-    box-shadow: 0 8px 22px rgba(240, 86, 143, 0.12);
+    box-shadow: 0 8px 22px rgba(184, 72, 11, 0.12);
 }
 
 /* Подписи к полям */
 label, [data-testid="stWidgetLabel"] p {
-    color: var(--text) !important;
+    color: var(--brown) !important;
     font-weight: 700 !important;
     font-size: 15px !important;
 }
 
-/* Поля ввода: крупный шрифт (на iPhone нет авто-зума) и скруглённые углы */
+/* Поля ввода */
 input, textarea, [data-baseweb="select"] div {
     font-size: 16px !important;
 }
 [data-baseweb="input"], [data-baseweb="base-input"], [data-baseweb="select"] > div {
-    background-color: #FFF8FB !important;
+    background-color: #FFFAF2 !important;
     border-radius: 14px !important;
-    border-color: var(--pink-soft) !important;
+    border-color: var(--sand) !important;
 }
 [data-baseweb="input"]:focus-within, [data-baseweb="select"] > div:focus-within {
-    border-color: var(--pink-main) !important;
-    box-shadow: 0 0 0 3px rgba(240, 86, 143, 0.2) !important;
+    border-color: var(--pumpkin) !important;
+    box-shadow: 0 0 0 3px rgba(238, 122, 31, 0.25) !important;
 }
 
 /* Три колонки (Подходы / Повторы / Вес) остаются в ряд и на телефоне */
@@ -137,7 +138,7 @@ input, textarea, [data-baseweb="select"] div {
     min-height: 52px;
     font-weight: 800 !important;
     font-size: 16px !important;
-    border: 2px solid var(--pink-main) !important;
+    border: 2px solid var(--pumpkin) !important;
     transition: transform 0.1s ease;
 }
 .stButton > button:active, .stDownloadButton > button:active,
@@ -145,52 +146,52 @@ input, textarea, [data-baseweb="select"] div {
 
 /* Главная кнопка «Записать» */
 button[kind="primary"], button[kind="primaryFormSubmit"] {
-    background: linear-gradient(135deg, #FF8DBA, #F0568F) !important;
+    background: linear-gradient(135deg, #F5A03A, #E2650F) !important;
     color: #FFFFFF !important;
-    box-shadow: 0 6px 16px rgba(240, 86, 143, 0.35);
+    box-shadow: 0 6px 16px rgba(226, 101, 15, 0.35);
 }
 /* Второстепенные кнопки */
 button[kind="secondary"], .stDownloadButton > button {
     background: #FFFFFF !important;
-    color: var(--pink-deep) !important;
+    color: var(--pumpkin-deep) !important;
 }
 
 /* Сообщения */
 [data-testid="stAlert"] {
     border-radius: 16px;
-    border: 2px solid var(--pink-soft);
+    border: 2px solid var(--sand);
     background: #FFFFFF;
-    color: var(--text);
+    color: var(--brown);
 }
 
-/* Разделители */
-hr { border-color: var(--pink-soft) !important; }
+hr { border-color: var(--sand) !important; }
 </style>
 """
-st.markdown(PINK_CSS, unsafe_allow_html=True)
+st.markdown(AUTUMN_CSS, unsafe_allow_html=True)
 
-# Шапка: котик с бантиком (рисунок встроен прямо в код, интернет не нужен)
-CAT_HEADER = (
-    '<div class="cat-header">'
+# Шапка: улыбающаяся тыковка с листочком (рисунок встроен в код, интернет не нужен)
+PUMPKIN_HEADER = (
+    '<div class="pumpkin-header">'
     '<svg viewBox="0 0 120 110" xmlns="http://www.w3.org/2000/svg">'
-    '<polygon points="16,44 20,6 54,28" fill="#FFF7FA" stroke="#7A1F48" stroke-width="3" stroke-linejoin="round"/>'
-    '<polygon points="104,44 100,6 66,28" fill="#FFF7FA" stroke="#7A1F48" stroke-width="3" stroke-linejoin="round"/>'
-    '<polygon points="25,36 27,17 44,29" fill="#FFB6D2"/>'
-    '<polygon points="95,36 93,17 76,29" fill="#FFB6D2"/>'
-    '<ellipse cx="60" cy="66" rx="46" ry="38" fill="#FFF7FA" stroke="#7A1F48" stroke-width="3"/>'
-    '<circle cx="42" cy="64" r="5.5" fill="#5A1B3A"/><circle cx="78" cy="64" r="5.5" fill="#5A1B3A"/>'
-    '<circle cx="44" cy="62" r="1.8" fill="#FFFFFF"/><circle cx="80" cy="62" r="1.8" fill="#FFFFFF"/>'
-    '<ellipse cx="31" cy="76" rx="7" ry="4.5" fill="#FF9EC4" opacity="0.65"/>'
-    '<ellipse cx="89" cy="76" rx="7" ry="4.5" fill="#FF9EC4" opacity="0.65"/>'
-    '<polygon points="55,73 65,73 60,79" fill="#F0568F"/>'
-    '<path d="M60 79 q-4 7 -10 3 M60 79 q4 7 10 3" fill="none" stroke="#7A1F48" stroke-width="2.5" stroke-linecap="round"/>'
-    '<path d="M10 66 l20 4 M10 78 l20 -3 M110 66 l-20 4 M110 78 l-20 -3" stroke="#7A1F48" stroke-width="2" stroke-linecap="round"/>'
-    '<polygon points="88,18 68,8 68,28" fill="#F0568F" stroke="#C2306C" stroke-width="2" stroke-linejoin="round"/>'
-    '<polygon points="88,18 108,8 108,28" fill="#F0568F" stroke="#C2306C" stroke-width="2" stroke-linejoin="round"/>'
-    '<circle cx="88" cy="18" r="5.5" fill="#FF9EC4" stroke="#C2306C" stroke-width="2"/>'
+    '<ellipse cx="34" cy="68" rx="25" ry="33" fill="#E8701A" stroke="#8A3B0B" stroke-width="3"/>'
+    '<ellipse cx="86" cy="68" rx="25" ry="33" fill="#E8701A" stroke="#8A3B0B" stroke-width="3"/>'
+    '<ellipse cx="48" cy="68" rx="25" ry="36" fill="#F28A25" stroke="#8A3B0B" stroke-width="3"/>'
+    '<ellipse cx="72" cy="68" rx="25" ry="36" fill="#F28A25" stroke="#8A3B0B" stroke-width="3"/>'
+    '<ellipse cx="60" cy="68" rx="20" ry="38" fill="#FF9A33" stroke="#8A3B0B" stroke-width="3"/>'
+    '<path d="M42 40 q-6 28 0 56 M78 40 q6 28 0 56" fill="none" stroke="#C4580F" stroke-width="2" stroke-linecap="round" opacity="0.7"/>'
+    '<polygon points="40,58 50,58 45,50" fill="#4A2511"/>'
+    '<polygon points="70,58 80,58 75,50" fill="#4A2511"/>'
+    '<path d="M42 76 q18 20 36 0" fill="#4A2511" stroke="#4A2511" stroke-width="3" stroke-linejoin="round"/>'
+    '<path d="M50 80 l4 -3 l4 3 l4 -3 l4 3 l4 -3" fill="none" stroke="#FFD25A" stroke-width="2.5" stroke-linejoin="round"/>'
+    '<ellipse cx="33" cy="72" rx="6" ry="4" fill="#FF6B3A" opacity="0.55"/>'
+    '<ellipse cx="87" cy="72" rx="6" ry="4" fill="#FF6B3A" opacity="0.55"/>'
+    '<path d="M58 32 q-2 -14 8 -22 q4 -2 5 3 q-2 6 -4 10 q-2 6 -4 10 z" fill="#6B4423" stroke="#3E2410" stroke-width="2.5" stroke-linejoin="round"/>'
+    '<path d="M64 24 q16 -16 30 -8 q-4 16 -26 14 z" fill="#7C8F2E" stroke="#4D5C18" stroke-width="2.5" stroke-linejoin="round"/>'
+    '<path d="M66 26 q12 -6 22 -8" fill="none" stroke="#4D5C18" stroke-width="2" stroke-linecap="round"/>'
+    '<path d="M62 22 q-14 -18 -26 -10" fill="none" stroke="#6F7F2B" stroke-width="3" stroke-linecap="round"/>'
     '</svg>'
     '<div><div class="title">Мой Блокнот Тренировок</div>'
-    '<div class="subtitle">Каждый подход делает тебя сильнее 🎀</div></div>'
+    '<div class="subtitle">Тёплая осень, крепкие мышцы 🍂</div></div>'
     '</div>'
 )
 
@@ -210,7 +211,7 @@ if not st.session_state.workout_db.empty:
 
 df = st.session_state.workout_db
 
-st.markdown(CAT_HEADER, unsafe_allow_html=True)
+st.markdown(PUMPKIN_HEADER, unsafe_allow_html=True)
 
 # Вкладки приложения
 tab_view, tab_add = st.tabs(["📋 Таблица тренировок", "➕ Добавить запись"])
@@ -248,17 +249,17 @@ with tab_view:
             
             # CSS-стили для красивого отображения и закрепления первого столбца на телефоне
             # (строки HTML без отступов, чтобы Markdown не принял их за блок кода)
-            custom_table_html = f"""<div style="overflow-x: auto; max-width: 100%; border: 2px solid #FFC2DA; border-radius: 20px; background: #FFFFFF; box-shadow: 0 8px 22px rgba(240, 86, 143, 0.15);">
+            custom_table_html = f"""<div style="overflow-x: auto; max-width: 100%; border: 2px solid #FFDDB0; border-radius: 20px; background: #FFFFFF; box-shadow: 0 8px 22px rgba(184, 72, 11, 0.15);">
 <style>
-.workout-table {{ width: 100%; border-collapse: separate; border-spacing: 0; font-family: 'Nunito', sans-serif; font-size: 15px; color: #5A1B3A; }}
-.workout-table th {{ background: linear-gradient(135deg, #FF9EC4, #F0568F); color: #FFFFFF; padding: 12px 12px; font-weight: 800; text-align: left; white-space: nowrap; border-bottom: 2px solid #FFFFFF; }}
-.workout-table td {{ padding: 12px 12px; border-bottom: 1px solid #FFE0EE; text-align: left; vertical-align: top; line-height: 1.5; white-space: nowrap; }}
-.workout-table tbody tr:nth-child(even) td {{ background-color: #FFF5F9; }}
+.workout-table {{ width: 100%; border-collapse: separate; border-spacing: 0; font-family: 'Nunito', sans-serif; font-size: 15px; color: #4A2511; }}
+.workout-table th {{ background: linear-gradient(135deg, #F5A03A, #D9600C); color: #FFFFFF; padding: 12px 12px; font-weight: 800; text-align: left; white-space: nowrap; border-bottom: 2px solid #FFFFFF; }}
+.workout-table td {{ padding: 12px 12px; border-bottom: 1px solid #FFE9CC; text-align: left; vertical-align: top; line-height: 1.5; white-space: nowrap; }}
+.workout-table tbody tr:nth-child(even) td {{ background-color: #FFF7EA; }}
 .workout-table tbody tr:last-child td {{ border-bottom: none; }}
 .workout-table th:first-child, .workout-table td:first-child {{
-    position: sticky; left: 0; background-color: #FFE8F2; font-weight: 800; z-index: 2; border-right: 2px solid #FFC2DA; color: #C2306C; white-space: normal; min-width: 110px;
+    position: sticky; left: 0; background-color: #FFEBD0; font-weight: 800; z-index: 2; border-right: 2px solid #FFDDB0; color: #B8480B; white-space: normal; min-width: 110px;
 }}
-.workout-table th:first-child {{ background: #F0568F; color: #FFFFFF; z-index: 3; }}
+.workout-table th:first-child {{ background: #B8480B; color: #FFFFFF; z-index: 3; }}
 </style>
 {html_raw.replace('class="dataframe"', 'class="workout-table"')}
 </div>"""
@@ -296,7 +297,7 @@ with tab_view:
                 st.session_state.workout_db.to_csv(DATA_FILE, index=False)
                 st.rerun()
     else:
-        st.info("🐱 Таблица пуста. Перейдите на вкладку 'Добавить запись', чтобы внести первые данные.")
+        st.info("🎃 Таблица пуста. Перейдите на вкладку 'Добавить запись', чтобы внести первые данные.")
 
 # --- ВКЛАДКА 2: ВВОД ДАННЫХ С ТЕЛЕФОНА ---
 with tab_add:
