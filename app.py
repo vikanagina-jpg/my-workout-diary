@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import io
 import os
 
 # Настройка страницы под мобильные телефоны
@@ -15,10 +16,6 @@ if "workout_db" not in st.session_state:
         st.session_state.workout_db = pd.read_csv(DATA_FILE, dtype={"Дата": str, "Упражнение": str, "Результат": str})
     else:
         st.session_state.workout_db = pd.DataFrame(columns=["Дата", "Упражнение", "Результат"])
-
-# Очищаем базу от старых искаженных дат типа "8.1", если они успели записаться
-if not st.session_state.workout_db.empty:
-    st.session_state.workout_db["Дата"] = st.session_state.workout_db["Дата"].replace("8.1", "08.10")
 
 df = st.session_state.workout_db
 
@@ -52,26 +49,34 @@ with tab_view:
             # Заменяем пустоты на прочерки
             pivot_df = pivot_df.fillna("—")
             
-            # Создаем конфигурацию: закрепляем первый столбец
-            col_config = {
-                "Упражнение": st.column_config.TextColumn(
-                    "Упражнение", 
-                    pinned=True, 
-                    width="medium"
-                )
-            }
+            # ИСПРАВЛЕНИЕ: Выводим HTML-таблицу БЕЗ технических индексов (скрываем цифры 0, 1 и слово Дата)
+            html_table = pivot_df.to_html(index=False, escape=False)
             
-            # Включаем корректный перенос строк для дат (через встроенный markdown-режим)
-            for col in date_cols:
-                col_config[col] = st.column_config.TextColumn(col, width="large")
+            # Добавляем немного красоты: рамки и выравнивание, чтобы на телефоне смотрелось аккуратно
+            styled_html = f"""
+            <style>
+                table {{ width: 100%; border-collapse: collapse; font-family: sans-serif; }}
+                th {{ background-color: #f0f2f6; padding: 10px; border: 1px solid #ccd1d9; text-align: left; }}
+                td {{ padding: 10px; border: 1px solid #ccd1d9; white-space: pre-wrap; text-align: left; vertical-align: top; }}
+            </style>
+            {html_table}
+            """
+            st.markdown(styled_html, unsafe_allow_html=True)
             
-            # Выводим красивую таблицу (используем специальный режим разметки для поддержки \n)
-            st.write(
-                pivot_df.style.set_properties(**{
-                    'text-align': 'left',
-                    'white-space': 'pre-wrap'
-                }).to_html(escape=False), 
-                unsafe_allow_html=True
+            st.write("---")
+            
+            # КНОПКА СКАЧИВАНИЯ ТАБЛИЦЫ В EXCEL
+            # Переводим кросс-таблицу в байты Excel
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                pivot_df.to_excel(writer, index=False, sheet_name='Тренировки')
+            
+            st.download_button(
+                label="📥 Скачать таблицу в Excel (для отправки)",
+                data=buffer.getvalue(),
+                file_name=f"workout_report_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
             )
             
         except Exception as e:
@@ -93,7 +98,7 @@ with tab_add:
     
     with st.form("add_form", clear_on_submit=True):
         date_input = st.date_input("Дата тренировки", datetime.now())
-        date_str = date_input.strftime("%d.%m") # Теперь железно запишет "08.10"
+        date_str = date_input.strftime("%d.%m") 
         
         existing_exercises = sorted(df["Упражнение"].unique().tolist()) if not df.empty else []
         
