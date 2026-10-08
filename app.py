@@ -444,7 +444,7 @@ PUMPKIN_HEADER = (
     '</svg>'
     '<div>'
     '<div class="title">Мой Блокнот Тренировок</div>'
-    '<div class="subtitle">Тёплая осень, крепкие мышцы 🍂</div>'
+    '<div class="subtitle">Мама может всё, а сильная мама – ещё больше! 🍂</div>'
     '</div>'
     '</div>'
 )
