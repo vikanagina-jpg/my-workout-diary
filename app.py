@@ -1,110 +1,472 @@
+```python
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+import sqlite3
+from datetime import date
 
-# Настройка страницы под мобильные телефоны
-st.set_page_config(page_title="Дневник тренировок", page_icon="🏋️‍♂️", layout="wide")
+# ============================================================
+# НАСТРОЙКИ
+# ============================================================
 
-# Инициализация постоянной памяти в облаке Streamlit
-if "workout_db" not in st.session_state:
-    st.session_state.workout_db = pd.DataFrame(columns=["Дата", "Упражнение", "Результат"])
+st.set_page_config(
+    page_title="Дневник тренировок",
+    page_icon="🏋️‍♂️",
+    layout="wide"
+)
 
-df = st.session_state.workout_db
+DB_FILE = "workout_diary.db"
 
-st.title("🏋️‍♂️ Мой Блокнот Тренировок")
 
-# Создаем вкладки для телефона
-tab_view, tab_add = st.tabs(["📋 Таблица тренировок", "➕ Добавить запись"])
+# ============================================================
+# БАЗА ДАННЫХ
+# ============================================================
 
-# --- ВКЛАДКА 1: ОТОБРАЖЕНИЕ ТАБЛИЦЫ (КАК В БЛОКНОТЕ) ---
-with tab_view:
-    st.subheader("Журнал по дням")
-    
-    if not df.empty:
-        try:
-            # Группируем, если за один день ввели одно упражнение несколько раз (например, разминка и рабочий вес)
-            grouped = df.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: " | ".join(x)).reset_index()
-            
-            # Превращаем плоский список в таблицу "Упражнение | Дата1 | Дата2..."
-            pivot_df = grouped.pivot(index="Упражнение", columns="Дата", values="Результат").reset_index()
-            
-            # Сортируем даты-столбцы по порядку (новые дни будут добавляться справа)
-            date_cols = sorted([col for col in pivot_df.columns if col != "Упражнение"])
-            final_cols = ["Упражнение"] + date_cols
-            pivot_df = pivot_df[final_cols]
-            
-            # Заменяем пустые тренировки на прочерки
-            pivot_df = pivot_df.fillna("—")
-            
-            # Вывод таблицы с закрепленным левым столбцом
-            st.data_editor(
-                pivot_df, 
-                use_container_width=True, 
-                hide_index=True,
-                disabled=True, # Защита от случайного редактирования при скролле пальцем
-                column_config={
-                    "Упражнение": st.column_config.TextColumn(
-                        "Упражнение", 
-                        pinned=True, # Закрепляем столбец с названиями намертво
-                        width="medium"
-                    )
-                }
-            )
-            
-        except Exception as e:
-            st.error(f"Ошибка при сборке таблицы: {e}")
-            st.dataframe(df) # Показываем сырые данные в случае сбоя
-            
-        st.write("") 
-        if st.button("❌ Удалить самую последнюю запись", type="secondary", use_container_width=True):
-            st.session_state.workout_db = df.drop(df.index[-1])
-            st. those_rows = st.session_state.workout_db.reset_index(drop=True)
-            st.rerun()
-    else:
-        st.info("Таблица пуста. Перейдите на вкладку 'Добавить запись', чтобы внесить первые данные.")
+def get_connection():
+    return sqlite3.connect(DB_FILE, check_same_thread=False)
 
-# --- ВКЛАДКА 2: ВВОД ДАННЫХ С ТЕЛЕФОНА ---
+
+def init_db():
+    conn = get_connection()
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS workouts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            workout_date TEXT NOT NULL,
+            exercise TEXT NOT NULL,
+            sets INTEGER NOT NULL,
+            reps INTEGER NOT NULL,
+            weight REAL NOT NULL,
+            comment TEXT
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+init_db()
+
+
+# ============================================================
+# РАБОТА С ДАННЫМИ
+# ============================================================
+
+def load_workouts():
+    conn = get_connection()
+
+    df = pd.read_sql_query("""
+        SELECT
+            id,
+            workout_date,
+            exercise,
+            sets,
+            reps,
+            weight,
+            comment
+        FROM workouts
+        ORDER BY workout_date DESC, id DESC
+    """, conn)
+
+    conn.close()
+    return df
+
+
+def add_workout(workout_date, exercise, sets, reps, weight, comment):
+    conn = get_connection()
+
+    conn.execute("""
+        INSERT INTO workouts
+        (workout_date, exercise, sets, reps, weight, comment)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        workout_date,
+        exercise,
+        sets,
+        reps,
+        weight,
+        comment
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def delete_workout(workout_id):
+    conn = get_connection()
+
+    conn.execute(
+        "DELETE FROM workouts WHERE id = ?",
+        (workout_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def delete_all_workouts():
+    conn = get_connection()
+
+    conn.execute("DELETE FROM workouts")
+
+    conn.commit()
+    conn.close()
+
+
+# ============================================================
+# ЗАГРУЗКА
+# ============================================================
+
+df = load_workouts()
+
+
+# ============================================================
+# ЗАГОЛОВОК
+# ============================================================
+
+st.title("🏋️‍♂️ Мой дневник тренировок")
+
+st.caption(
+    "Добавляй любые упражнения и сколько угодно подходов. "
+    "Данные сохраняются в базе SQLite."
+)
+
+
+# ============================================================
+# ВКЛАДКИ
+# ============================================================
+
+tab_add, tab_table, tab_history = st.tabs([
+    "➕ Добавить",
+    "📋 Таблица",
+    "📅 История"
+])
+
+
+# ============================================================
+# ДОБАВЛЕНИЕ
+# ============================================================
+
 with tab_add:
-    st.subheader("Новый подход / упражнение")
-    
-    with st.form("add_form", clear_on_submit=True):
-        date_input = st.date_input("Дата тренировки", datetime.now())
-        date_str = date_input.strftime("%d.%m") # Формат "05.10", "07.10"
-        
-        unique_exercises = sorted(df["Упражнение"].unique().tolist()) if not df.empty else []
-        exercise_type = st.radio("Выбрать упражнение:", ["Из существующих", "Написать новое"], horizontal=True)
-        
-        if exercise_type == "Из существующих" and unique_exercises:
-            exercise = st.selectbox("Выберите упражнение", unique_exercises)
-        else:
-            exercise = st.text_input("Введите название упражнения", placeholder="Например: Становая")
-            
-        st.write("---")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            sets = st.number_input("Подходы", min_value=1, value=2, step=1)
-        with col2:
-            reps = st.number_input("Повторы", min_value=1, value=8, step=1)
-        with col3:
-            weight = st.number_input("Вес (кг)", min_value=0.0, value=0.0, step=0.5)
-            
-        comment = st.selectbox("Примечание (необязательно)", ["", "разминка", "рабочий вес"])
-        
-        submit_btn = st.form_submit_button("💾 Записать в таблицу", use_container_width=True, type="primary")
-        
-        if submit_btn:
-            if not exercise or not exercise.strip():
-                st.error("Упражнение не может быть пустым!")
+
+    st.subheader("Новая запись")
+
+    # Все существующие упражнения
+    if not df.empty:
+        exercises = sorted(
+            df["exercise"].dropna().unique().tolist()
+        )
+    else:
+        exercises = []
+
+    with st.form("add_workout", clear_on_submit=True):
+
+        workout_date = st.date_input(
+            "📅 Дата тренировки",
+            value=date.today()
+        )
+
+        # Если упражнения уже есть — предлагаем выбрать
+        if exercises:
+            exercise_mode = st.radio(
+                "Упражнение",
+                [
+                    "Выбрать существующее",
+                    "Добавить новое"
+                ],
+                horizontal=True
+            )
+
+            if exercise_mode == "Выбрать существующее":
+                exercise = st.selectbox(
+                    "Выберите упражнение",
+                    exercises
+                )
             else:
-                weight_str = f"{int(weight)}" if weight.is_integer() else f"{weight}"
-                res_string = f"{sets}/{reps} {weight_str}"
-                if comment:
-                    res_string += f" ({comment})"
-                
-                # Добавляем в общую базу данных в памяти сессии
-                new_row = pd.DataFrame([[date_str, exercise.strip(), res_string]], columns=["Дата", "Упражнение", "Результат"])
-                st.session_state.workout_db = pd.concat([df, new_row], ignore_index=True)
-                
-                st.success(f"Добавлено: {exercise} -> {res_string}")
+                exercise = st.text_input(
+                    "Название нового упражнения",
+                    placeholder="Например: Становая тяга"
+                )
+
+        else:
+            exercise = st.text_input(
+                "Название упражнения",
+                placeholder="Например: Жим лёжа"
+            )
+
+        st.divider()
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            sets = st.number_input(
+                "Подходы",
+                min_value=1,
+                max_value=100,
+                value=3,
+                step=1
+            )
+
+        with col2:
+            reps = st.number_input(
+                "Повторы",
+                min_value=1,
+                max_value=1000,
+                value=8,
+                step=1
+            )
+
+        weight = st.number_input(
+            "🏋️ Вес (кг)",
+            min_value=0.0,
+            max_value=1000.0,
+            value=0.0,
+            step=0.5
+        )
+
+        comment = st.selectbox(
+            "Примечание",
+            [
+                "",
+                "разминка",
+                "рабочий вес",
+                "тяжело",
+                "легко",
+                "до отказа"
+            ]
+        )
+
+        save = st.form_submit_button(
+            "💾 СОХРАНИТЬ",
+            use_container_width=True,
+            type="primary"
+        )
+
+        if save:
+
+            exercise = exercise.strip()
+
+            if not exercise:
+                st.error("Введите название упражнения.")
+
+            else:
+
+                add_workout(
+                    workout_date.strftime("%Y-%m-%d"),
+                    exercise,
+                    int(sets),
+                    int(reps),
+                    float(weight),
+                    comment
+                )
+
+                st.success(
+                    f"✅ Сохранено: {exercise} — "
+                    f"{sets}×{reps} × {weight:g} кг"
+                )
+
                 st.rerun()
+
+
+# ============================================================
+# ОСНОВНАЯ ТАБЛИЦА
+# ============================================================
+
+with tab_table:
+
+    st.subheader("📋 Все тренировки")
+
+    if df.empty:
+
+        st.info(
+            "Пока нет записей. "
+            "Перейди во вкладку «➕ Добавить»."
+        )
+
+    else:
+
+        # Красивый формат результата
+        display_df = df.copy()
+
+        display_df["Дата"] = pd.to_datetime(
+            display_df["workout_date"]
+        ).dt.strftime("%d.%m.%Y")
+
+        display_df["Результат"] = (
+            display_df["sets"].astype(str)
+            + " × "
+            + display_df["reps"].astype(str)
+            + " × "
+            + display_df["weight"].map(lambda x: f"{x:g}")
+            + " кг"
+        )
+
+        display_df["Примечание"] = (
+            display_df["comment"].fillna("")
+        )
+
+        display_df = display_df[
+            [
+                "Дата",
+                "exercise",
+                "Результат",
+                "Примечание"
+            ]
+        ]
+
+        display_df.columns = [
+            "Дата",
+            "Упражнение",
+            "Результат",
+            "Примечание"
+        ]
+
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
+
+# ============================================================
+# ИСТОРИЯ ПО УПРАЖНЕНИЯМ
+# ============================================================
+
+with tab_history:
+
+    st.subheader("📅 История тренировок")
+
+    if df.empty:
+
+        st.info("История пока пустая.")
+
+    else:
+
+        exercises = sorted(
+            df["exercise"].unique().tolist()
+        )
+
+        selected_exercise = st.selectbox(
+            "Выберите упражнение",
+            exercises
+        )
+
+        exercise_df = df[
+            df["exercise"] == selected_exercise
+        ].copy()
+
+        exercise_df["Дата"] = pd.to_datetime(
+            exercise_df["workout_date"]
+        ).dt.strftime("%d.%m.%Y")
+
+        exercise_df["Результат"] = (
+            exercise_df["sets"].astype(str)
+            + " × "
+            + exercise_df["reps"].astype(str)
+            + " × "
+            + exercise_df["weight"].map(lambda x: f"{x:g}")
+            + " кг"
+        )
+
+        history = exercise_df[
+            [
+                "Дата",
+                "Результат",
+                "comment"
+            ]
+        ].copy()
+
+        history.columns = [
+            "Дата",
+            "Результат",
+            "Примечание"
+        ]
+
+        st.dataframe(
+            history,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        # ----------------------------------------------------
+        # Максимальный вес
+        # ----------------------------------------------------
+
+        max_weight = exercise_df["weight"].max()
+
+        st.metric(
+            "🏆 Максимальный вес",
+            f"{max_weight:g} кг"
+        )
+
+
+# ============================================================
+# УПРАВЛЕНИЕ ЗАПИСЯМИ
+# ============================================================
+
+st.divider()
+
+with st.expander("⚙️ Управление записями"):
+
+    if df.empty:
+
+        st.write("Нет записей для управления.")
+
+    else:
+
+        # Удаление конкретной записи
+
+        delete_options = []
+
+        for _, row in df.iterrows():
+
+            weight_text = f"{row['weight']:g}"
+
+            label = (
+                f"{row['workout_date']} — "
+                f"{row['exercise']} — "
+                f"{row['sets']}×{row['reps']} "
+                f"× {weight_text} кг"
+            )
+
+            delete_options.append(
+                (row["id"], label)
+            )
+
+        selected_delete = st.selectbox(
+            "Выберите запись для удаления",
+            delete_options,
+            format_func=lambda x: x[1]
+        )
+
+        if st.button(
+            "🗑️ Удалить выбранную запись",
+            use_container_width=True
+        ):
+
+            delete_workout(
+                selected_delete[0]
+            )
+
+            st.success("Запись удалена.")
+
+            st.rerun()
+
+        st.divider()
+
+        # Полное удаление
+
+        st.warning(
+            "Следующая кнопка удалит ВСЕ записи из дневника."
+        )
+
+        if st.button(
+            "💥 Удалить весь дневник",
+            use_container_width=True
+        ):
+
+            delete_all_workouts()
+
+            st.success("Дневник очищен.")
+
+            st.rerun()
+```
