@@ -12,9 +12,13 @@ DATA_FILE = "workout_diary_storage.csv"
 # Логика загрузки данных
 if "workout_db" not in st.session_state:
     if os.path.exists(DATA_FILE):
-        st.session_state.workout_db = pd.read_csv(DATA_FILE)
+        st.session_state.workout_db = pd.read_csv(DATA_FILE, dtype={"Дата": str, "Упражнение": str, "Результат": str})
     else:
         st.session_state.workout_db = pd.DataFrame(columns=["Дата", "Упражнение", "Результат"])
+
+# Очищаем базу от старых искаженных дат типа "8.1", если они успели записаться
+if not st.session_state.workout_db.empty:
+    st.session_state.workout_db["Дата"] = st.session_state.workout_db["Дата"].replace("8.1", "08.10")
 
 df = st.session_state.workout_db
 
@@ -29,17 +33,18 @@ with tab_view:
     
     if not df.empty:
         try:
-            df["Дата"] = df["Дата"].astype(str)
-            df["Упражнение"] = df["Упражнение"].astype(str)
-            df["Результат"] = df["Результат"].astype(str)
+            df_view = df.copy()
+            df_view["Дата"] = df_view["Дата"].astype(str)
+            df_view["Упражнение"] = df_view["Упражнение"].astype(str)
+            df_view["Результат"] = df_view["Результат"].astype(str)
             
-            # Объединяем подходы через обычный перенос строки
-            grouped = df.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: "\n".join(x)).reset_index()
+            # Соединяем подходы через обычный перенос строки
+            grouped = df_view.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: "\n".join(x)).reset_index()
             
             # Превращаем в кросс-таблицу
             pivot_df = grouped.pivot(index="Упражнение", columns="Дата", values="Результат").reset_index()
             
-            # Сортируем даты по порядку (новые будут справа)
+            # Сортируем даты-столбцы по порядку (новые будут добавляться справа)
             date_cols = sorted([col for col in pivot_df.columns if col != "Упражнение"])
             final_cols = ["Упражнение"] + date_cols
             pivot_df = pivot_df[final_cols]
@@ -47,11 +52,26 @@ with tab_view:
             # Заменяем пустоты на прочерки
             pivot_df = pivot_df.fillna("—")
             
-            # Безопасный вывод таблицы с поддержкой переносов строк на любых версиях Streamlit
-            st.dataframe(
-                pivot_df, 
-                use_container_width=True, 
-                hide_index=True
+            # Создаем конфигурацию: закрепляем первый столбец
+            col_config = {
+                "Упражнение": st.column_config.TextColumn(
+                    "Упражнение", 
+                    pinned=True, 
+                    width="medium"
+                )
+            }
+            
+            # Включаем корректный перенос строк для дат (через встроенный markdown-режим)
+            for col in date_cols:
+                col_config[col] = st.column_config.TextColumn(col, width="large")
+            
+            # Выводим красивую таблицу (используем специальный режим разметки для поддержки \n)
+            st.write(
+                pivot_df.style.set_properties(**{
+                    'text-align': 'left',
+                    'white-space': 'pre-wrap'
+                }).to_html(escape=False), 
+                unsafe_allow_html=True
             )
             
         except Exception as e:
@@ -73,7 +93,7 @@ with tab_add:
     
     with st.form("add_form", clear_on_submit=True):
         date_input = st.date_input("Дата тренировки", datetime.now())
-        date_str = date_input.strftime("%d.%m") 
+        date_str = date_input.strftime("%d.%m") # Теперь железно запишет "08.10"
         
         existing_exercises = sorted(df["Упражнение"].unique().tolist()) if not df.empty else []
         
@@ -110,7 +130,7 @@ with tab_add:
                 if comment:
                     res_string += f" ({comment})"
                 
-                new_row = pd.DataFrame([[date_str, final_exercise, res_string]], columns=["Дата", "Упражнение", "Результат"])
+                new_row = pd.DataFrame([[str(date_str), str(final_exercise), str(res_string)]], columns=["Дата", "Упражнение", "Результат"])
                 st.session_state.workout_db = pd.concat([st.session_state.workout_db, new_row], ignore_index=True)
                 st.session_state.workout_db.to_csv(DATA_FILE, index=False)
                 
