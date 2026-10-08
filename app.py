@@ -1073,11 +1073,12 @@ with tab_add:
             if not df.empty
             else []
         )
-
         exercise = st.selectbox(
             "Начните вводить или выберите упражнение:",
-            options=[""] + existing_exercises,
-            index=0
+            options=existing_exercises,
+            index=None,
+            placeholder="Выберите упражнение"
+        
         )
 
         custom_exercise = st.text_input(
