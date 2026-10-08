@@ -473,13 +473,21 @@ if "workout_db" not in st.session_state:
 
         except Exception:
             st.session_state.workout_db = pd.DataFrame(
-                columns=["Дата", "Упражнение", "Результат"]
+                columns=[
+                    "Дата",
+                    "Упражнение",
+                    "Результат"
+                ]
             )
 
     else:
 
         st.session_state.workout_db = pd.DataFrame(
-            columns=["Дата", "Упражнение", "Результат"]
+            columns=[
+                "Дата",
+                "Упражнение",
+                "Результат"
+            ]
         )
 
 
@@ -571,7 +579,9 @@ def undo_delete():
     Возвращает последнюю удалённую запись.
     """
 
-    saved = st.session_state.get("last_deleted")
+    saved = st.session_state.get(
+        "last_deleted"
+    )
 
     if not saved:
         return
@@ -611,15 +621,6 @@ def render_groups(
 ):
     """
     Показывает упражнения компактными карточками.
-
-    В обычном режиме:
-        Жим лёжа
-        [3/8 80] [3/8 80] [3/6 85]
-
-    В режиме удаления:
-        Жим лёжа
-        [3/8 80] 🗑
-        [3/8 80] 🗑
     """
 
     for name, grp in sub.groupby(
@@ -679,7 +680,10 @@ def render_groups(
 
                 for idx in grp.index:
 
-                    result = grp.loc[idx, "Результат"]
+                    result = grp.loc[
+                        idx,
+                        "Результат"
+                    ]
 
                     c1, c2 = st.columns(
                         [6, 1],
@@ -724,7 +728,7 @@ def render_groups(
 
 
 # ============================================================
-# 📊 ОБЩАЯ ТАБЛИЦА
+# 📊 ДАННЫЕ ДЛЯ EXCEL
 # ============================================================
 
 def build_pivot(data):
@@ -845,8 +849,7 @@ with tab_view:
             "Вид",
             [
                 "📅 Дни",
-                "💪 Упражнения",
-                "📊 Таблица"
+                "💪 Упражнения"
             ],
             horizontal=True,
             label_visibility="collapsed"
@@ -856,19 +859,13 @@ with tab_view:
         # Режим удаления
         # ----------------------------------------------------
 
-        if view_mode != "📊 Таблица":
-
-            delete_mode = st.toggle(
-                "🗑️ Режим удаления",
-                help=(
-                    "Включите, чтобы удалить "
-                    "любой конкретный подход."
-                )
+        delete_mode = st.toggle(
+            "🗑️ Режим удаления",
+            help=(
+                "Включите, чтобы удалить "
+                "любой конкретный подход."
             )
-
-        else:
-
-            delete_mode = False
+        )
 
         # ====================================================
         # 📅 ВИД ПО ДНЯМ
@@ -892,7 +889,8 @@ with tab_view:
             for i, d in enumerate(dates):
 
                 sub = df[
-                    df["Дата"].astype(str) == str(d)
+                    df["Дата"].astype(str)
+                    == str(d)
                 ]
 
                 exercise_count = (
@@ -969,10 +967,11 @@ with tab_view:
             )
 
         # ====================================================
-        # 📊 ОБЩАЯ ТАБЛИЦА
+        # 📥 EXCEL
         # ====================================================
 
         pivot_df = None
+        date_cols = []
 
         try:
 
@@ -981,130 +980,8 @@ with tab_view:
         except Exception as e:
 
             st.error(
-                f"Ошибка при сборке таблицы: {e}"
+                f"Ошибка при подготовке Excel: {e}"
             )
-
-            st.dataframe(df)
-
-        if (
-            view_mode == "📊 Таблица"
-            and pivot_df is not None
-        ):
-
-            st.subheader(
-                "Общая таблица"
-            )
-
-            st.caption(
-                "📱 Для телефона удобнее использовать "
-                "вид «Дни». Таблица оставлена для "
-                "обзора всей истории и компьютера."
-            )
-
-            html_raw = pivot_df.to_html(
-                index=False,
-                escape=False
-            )
-
-            custom_table_html = f"""
-            <div style="
-                overflow-x: auto;
-                max-width: 100%;
-                border: 2px solid #FFDDB0;
-                border-radius: 20px;
-                background: #FFFFFF;
-                box-shadow:
-                    0 8px 22px
-                    rgba(184, 72, 11, 0.15);
-            ">
-
-            <style>
-
-            .workout-table {{
-                width: 100%;
-                border-collapse: separate;
-                border-spacing: 0;
-                font-family: 'Nunito', sans-serif;
-                font-size: 15px;
-                color: #4A2511;
-            }}
-
-            .workout-table th {{
-                background:
-                    linear-gradient(
-                        135deg,
-                        #F5A03A,
-                        #D9600C
-                    );
-                color: #FFFFFF;
-                padding: 12px;
-                font-weight: 800;
-                text-align: left;
-                white-space: nowrap;
-                border-bottom: 2px solid #FFFFFF;
-            }}
-
-            .workout-table td {{
-                padding: 12px;
-                border-bottom:
-                    1px solid #FFE9CC;
-                text-align: left;
-                vertical-align: top;
-                line-height: 1.5;
-                white-space: nowrap;
-            }}
-
-            .workout-table
-            tbody tr:nth-child(even) td {{
-                background-color: #FFF7EA;
-            }}
-
-            .workout-table
-            tbody tr:last-child td {{
-                border-bottom: none;
-            }}
-
-            .workout-table
-            th:first-child,
-            .workout-table
-            td:first-child {{
-                position: sticky;
-                left: 0;
-                background-color: #FFEBD0;
-                font-weight: 800;
-                z-index: 2;
-                border-right:
-                    2px solid #FFDDB0;
-                color: #B8480B;
-                white-space: normal;
-                min-width: 110px;
-            }}
-
-            .workout-table
-            th:first-child {{
-                background: #B8480B;
-                color: #FFFFFF;
-                z-index: 3;
-            }}
-
-            </style>
-
-            {html_raw.replace(
-                'class="dataframe"',
-                'class="workout-table"'
-            )}
-
-            </div>
-            """
-
-            st.write(
-                custom_table_html,
-                unsafe_allow_html=True
-            )
-
-        # ====================================================
-        # 📥 EXCEL
-        # ====================================================
 
         if pivot_df is not None:
 
@@ -1119,7 +996,8 @@ with tab_view:
                     .astype(str)
                     .str.replace(
                         "<br>",
-                        "\n"
+                        "\n",
+                        regex=False
                     )
                 )
 
@@ -1238,6 +1116,10 @@ with tab_add:
                 step=0.5
             )
 
+        # ====================================================
+        # ⭐ РАЗМИНКА / РАБОЧИЙ ВЕС
+        # ====================================================
+
         comment = st.selectbox(
             "Примечание (необязательно)",
             [
@@ -1328,4 +1210,3 @@ with tab_add:
                     f"{final_exercise} → "
                     f"{res_string}"
                 )
-
