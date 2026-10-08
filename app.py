@@ -17,10 +17,6 @@ if "workout_db" not in st.session_state:
     else:
         st.session_state.workout_db = pd.DataFrame(columns=["Дата", "Упражнение", "Результат"])
 
-# Исправляем накопившиеся ошибки в датах, если они записались криво
-if not st.session_state.workout_db.empty:
-    st.session_state.workout_db["Дата"] = st.session_state.workout_db["Дата"].astype(str).replace("8.1", "08.10")
-
 df = st.session_state.workout_db
 
 st.title("🏋️‍♂️ Мой Блокнот Тренировок")
@@ -39,8 +35,8 @@ with tab_view:
             df_view["Упражнение"] = df_view["Упражнение"].astype(str)
             df_view["Результат"] = df_view["Результат"].astype(str)
             
-            # Соединяем подходы через перенос строки
-            grouped = df_view.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: "\n".join(x)).reset_index()
+            # НАДЕЖНОЕ ИСПРАВЛЕНИЕ: Соединяем подходы через красивый разделитель со стрелкой
+            grouped = df_view.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: "  ➔  ".join(x)).reset_index()
             
             # Превращаем в кросс-таблицу
             pivot_df = grouped.pivot(index="Упражнение", columns="Дата", values="Результат").reset_index()
@@ -53,23 +49,16 @@ with tab_view:
             # Заменяем пустоты на прочерки
             pivot_df = pivot_df.fillna("—")
             
-            # ИСПРАВЛЕНИЕ: Создаем конфигурацию столбцов с автоматическим переносом текста строк
+            # Жестко настраиваем закрепление БЕЗ ломающихся параметров переноса текста
             col_config = {
                 "Упражнение": st.column_config.TextColumn(
                     "Упражнение", 
-                    pinned=True, # Закрепляем первый столбец
+                    pinned=True, 
                     width="medium"
                 )
             }
             
-            # Для каждого столбца с датой включаем режим переноса текста wrap_text=True
-            for col in date_cols:
-                col_config[col] = st.column_config.TextColumn(
-                    col,
-                    wrap_text=True  # Включаем перенос строк внутри стандартного st.dataframe
-                )
-            
-            # Выводим оригинальный красивый вид со скрытыми цифрами и ПЕРЕНОСОМ строк
+            # Выводим красивую, стабильную таблицу без лишних индексов 0 и 1
             st.dataframe(
                 pivot_df, 
                 use_container_width=True, 
