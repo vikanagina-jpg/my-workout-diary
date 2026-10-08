@@ -5,7 +5,194 @@ import io
 import os
 
 # Настройка страницы под мобильные телефоны
-st.set_page_config(page_title="Дневник тренировок", page_icon="🏋️‍♂️", layout="wide")
+st.set_page_config(page_title="Дневник тренировок", page_icon="🎀", layout="wide")
+
+# ============================================================
+# 🎀 РОЗОВЫЙ ДИЗАЙН (только оформление, логика ниже не тронута)
+# ============================================================
+PINK_CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=Pacifico&display=swap');
+
+:root {
+    --bg: #FFF0F6;
+    --card: #FFFFFF;
+    --pink-soft: #FFD9E8;
+    --pink-mid: #FF9EC4;
+    --pink-main: #F0568F;
+    --pink-deep: #C2306C;
+    --text: #5A1B3A;
+}
+
+html, body, [class*="css"], .stApp, .stMarkdown, label, p, span, div {
+    font-family: 'Nunito', 'Segoe UI', Arial, sans-serif;
+}
+
+/* Фон приложения: нежный розовый с лёгкими сердечками-пятнами */
+.stApp {
+    background:
+        radial-gradient(circle at 12% 8%, #FFE0EE 0, transparent 38%),
+        radial-gradient(circle at 92% 30%, #FFE8F2 0, transparent 34%),
+        var(--bg);
+    color: var(--text);
+}
+
+/* Убираем лишнее у Streamlit и ограничиваем ширину для удобного чтения */
+header[data-testid="stHeader"] { background: transparent; }
+footer { visibility: hidden; }
+.block-container {
+    max-width: 760px !important;
+    padding: 1rem 0.9rem 3rem 0.9rem !important;
+}
+
+/* Шапка с котиком */
+.cat-header {
+    display: flex; align-items: center; gap: 14px;
+    background: linear-gradient(135deg, #FFC2DA 0%, #FF9EC4 100%);
+    border-radius: 26px;
+    padding: 14px 18px;
+    margin: 4px 0 18px 0;
+    box-shadow: 0 8px 20px rgba(240, 86, 143, 0.25);
+    border: 3px solid #FFFFFF;
+}
+.cat-header svg { flex: 0 0 auto; width: 84px; height: 76px; }
+.cat-header .title {
+    font-family: 'Pacifico', cursive;
+    font-size: 26px; line-height: 1.15;
+    color: #FFFFFF;
+    text-shadow: 0 2px 0 rgba(194, 48, 108, 0.45);
+}
+.cat-header .subtitle {
+    font-size: 14px; font-weight: 700; color: #7A1F48; margin-top: 4px;
+}
+
+/* Подзаголовки */
+h2, h3, [data-testid="stHeading"] h3 {
+    color: var(--pink-deep) !important;
+    font-weight: 800 !important;
+}
+
+/* Вкладки: большие розовые «таблетки», удобно нажимать пальцем */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px; background: transparent; border-bottom: none;
+}
+.stTabs [data-baseweb="tab"] {
+    flex: 1 1 0;
+    height: 48px;
+    justify-content: center;
+    background: #FFFFFF;
+    border: 2px solid var(--pink-soft);
+    border-radius: 16px;
+    color: var(--pink-deep);
+    font-weight: 800;
+}
+.stTabs [data-baseweb="tab"] p { font-size: 15px; font-weight: 800; }
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, #FF8DBA, #F0568F) !important;
+    border-color: #F0568F !important;
+}
+.stTabs [aria-selected="true"] p { color: #FFFFFF !important; }
+.stTabs [data-baseweb="tab-highlight"],
+.stTabs [data-baseweb="tab-border"] { display: none; }
+
+/* Форма добавления — как розовая карточка */
+[data-testid="stForm"] {
+    background: var(--card);
+    border: 2px solid var(--pink-soft);
+    border-radius: 24px;
+    padding: 18px 16px;
+    box-shadow: 0 8px 22px rgba(240, 86, 143, 0.12);
+}
+
+/* Подписи к полям */
+label, [data-testid="stWidgetLabel"] p {
+    color: var(--text) !important;
+    font-weight: 700 !important;
+    font-size: 15px !important;
+}
+
+/* Поля ввода: крупный шрифт (на iPhone нет авто-зума) и скруглённые углы */
+input, textarea, [data-baseweb="select"] div {
+    font-size: 16px !important;
+}
+[data-baseweb="input"], [data-baseweb="base-input"], [data-baseweb="select"] > div {
+    background-color: #FFF8FB !important;
+    border-radius: 14px !important;
+    border-color: var(--pink-soft) !important;
+}
+[data-baseweb="input"]:focus-within, [data-baseweb="select"] > div:focus-within {
+    border-color: var(--pink-main) !important;
+    box-shadow: 0 0 0 3px rgba(240, 86, 143, 0.2) !important;
+}
+
+/* Три колонки (Подходы / Повторы / Вес) остаются в ряд и на телефоне */
+[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 8px !important; }
+[data-testid="stColumn"], [data-testid="column"] {
+    min-width: 0 !important; flex: 1 1 0 !important; width: auto !important;
+}
+
+/* Кнопки */
+.stButton > button, .stDownloadButton > button, [data-testid="stFormSubmitButton"] > button {
+    border-radius: 18px !important;
+    min-height: 52px;
+    font-weight: 800 !important;
+    font-size: 16px !important;
+    border: 2px solid var(--pink-main) !important;
+    transition: transform 0.1s ease;
+}
+.stButton > button:active, .stDownloadButton > button:active,
+[data-testid="stFormSubmitButton"] > button:active { transform: scale(0.97); }
+
+/* Главная кнопка «Записать» */
+button[kind="primary"], button[kind="primaryFormSubmit"] {
+    background: linear-gradient(135deg, #FF8DBA, #F0568F) !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 6px 16px rgba(240, 86, 143, 0.35);
+}
+/* Второстепенные кнопки */
+button[kind="secondary"], .stDownloadButton > button {
+    background: #FFFFFF !important;
+    color: var(--pink-deep) !important;
+}
+
+/* Сообщения */
+[data-testid="stAlert"] {
+    border-radius: 16px;
+    border: 2px solid var(--pink-soft);
+    background: #FFFFFF;
+    color: var(--text);
+}
+
+/* Разделители */
+hr { border-color: var(--pink-soft) !important; }
+</style>
+"""
+st.markdown(PINK_CSS, unsafe_allow_html=True)
+
+# Шапка: котик с бантиком (рисунок встроен прямо в код, интернет не нужен)
+CAT_HEADER = (
+    '<div class="cat-header">'
+    '<svg viewBox="0 0 120 110" xmlns="http://www.w3.org/2000/svg">'
+    '<polygon points="16,44 20,6 54,28" fill="#FFF7FA" stroke="#7A1F48" stroke-width="3" stroke-linejoin="round"/>'
+    '<polygon points="104,44 100,6 66,28" fill="#FFF7FA" stroke="#7A1F48" stroke-width="3" stroke-linejoin="round"/>'
+    '<polygon points="25,36 27,17 44,29" fill="#FFB6D2"/>'
+    '<polygon points="95,36 93,17 76,29" fill="#FFB6D2"/>'
+    '<ellipse cx="60" cy="66" rx="46" ry="38" fill="#FFF7FA" stroke="#7A1F48" stroke-width="3"/>'
+    '<circle cx="42" cy="64" r="5.5" fill="#5A1B3A"/><circle cx="78" cy="64" r="5.5" fill="#5A1B3A"/>'
+    '<circle cx="44" cy="62" r="1.8" fill="#FFFFFF"/><circle cx="80" cy="62" r="1.8" fill="#FFFFFF"/>'
+    '<ellipse cx="31" cy="76" rx="7" ry="4.5" fill="#FF9EC4" opacity="0.65"/>'
+    '<ellipse cx="89" cy="76" rx="7" ry="4.5" fill="#FF9EC4" opacity="0.65"/>'
+    '<polygon points="55,73 65,73 60,79" fill="#F0568F"/>'
+    '<path d="M60 79 q-4 7 -10 3 M60 79 q4 7 10 3" fill="none" stroke="#7A1F48" stroke-width="2.5" stroke-linecap="round"/>'
+    '<path d="M10 66 l20 4 M10 78 l20 -3 M110 66 l-20 4 M110 78 l-20 -3" stroke="#7A1F48" stroke-width="2" stroke-linecap="round"/>'
+    '<polygon points="88,18 68,8 68,28" fill="#F0568F" stroke="#C2306C" stroke-width="2" stroke-linejoin="round"/>'
+    '<polygon points="88,18 108,8 108,28" fill="#F0568F" stroke="#C2306C" stroke-width="2" stroke-linejoin="round"/>'
+    '<circle cx="88" cy="18" r="5.5" fill="#FF9EC4" stroke="#C2306C" stroke-width="2"/>'
+    '</svg>'
+    '<div><div class="title">Мой Блокнот Тренировок</div>'
+    '<div class="subtitle">Каждый подход делает тебя сильнее 🎀</div></div>'
+    '</div>'
+)
 
 # Имя файла для персистентного хранения данных в облаке
 DATA_FILE = "workout_diary_storage.csv"
@@ -23,7 +210,7 @@ if not st.session_state.workout_db.empty:
 
 df = st.session_state.workout_db
 
-st.title("🏋️‍♂️ Мой Блокнот Тренировок")
+st.markdown(CAT_HEADER, unsafe_allow_html=True)
 
 # Вкладки приложения
 tab_view, tab_add = st.tabs(["📋 Таблица тренировок", "➕ Добавить запись"])
@@ -60,21 +247,21 @@ with tab_view:
             html_raw = pivot_df.to_html(index=False, escape=False)
             
             # CSS-стили для красивого отображения и закрепления первого столбца на телефоне
-            custom_table_html = f"""
-            <div style="overflow-x: auto; max-width: 100%; border: 1px solid #ccd1d9; border-radius: 4px;">
-                <style>
-                    .workout-table {{ width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px; }}
-                    .workout-table th {{ background-color: #f0f2f6; padding: 12px 10px; border: 1px solid #ccd1d9; font-weight: bold; text-align: left; }}
-                    .workout-table td {{ padding: 12px 10px; border: 1px solid #ccd1d9; text-align: left; vertical-align: top; line-height: 1.4; }}
-                    /* Закрепляем первый столбец намертво при скролле вбок */
-                    .workout-table th:first-child, .workout-table td:first-child {{
-                        position: sticky; left: 0; background-color: #ffffff; font-weight: bold; z-index: 2; border-right: 2px solid #ccd1d9;
-                    }}
-                    .workout-table th:first-child {{ background-color: #f0f2f6; z-index: 3; }}
-                </style>
-                {html_raw.replace('class="dataframe"', 'class="workout-table"')}
-            </div>
-            """
+            # (строки HTML без отступов, чтобы Markdown не принял их за блок кода)
+            custom_table_html = f"""<div style="overflow-x: auto; max-width: 100%; border: 2px solid #FFC2DA; border-radius: 20px; background: #FFFFFF; box-shadow: 0 8px 22px rgba(240, 86, 143, 0.15);">
+<style>
+.workout-table {{ width: 100%; border-collapse: separate; border-spacing: 0; font-family: 'Nunito', sans-serif; font-size: 15px; color: #5A1B3A; }}
+.workout-table th {{ background: linear-gradient(135deg, #FF9EC4, #F0568F); color: #FFFFFF; padding: 12px 12px; font-weight: 800; text-align: left; white-space: nowrap; border-bottom: 2px solid #FFFFFF; }}
+.workout-table td {{ padding: 12px 12px; border-bottom: 1px solid #FFE0EE; text-align: left; vertical-align: top; line-height: 1.5; white-space: nowrap; }}
+.workout-table tbody tr:nth-child(even) td {{ background-color: #FFF5F9; }}
+.workout-table tbody tr:last-child td {{ border-bottom: none; }}
+.workout-table th:first-child, .workout-table td:first-child {{
+    position: sticky; left: 0; background-color: #FFE8F2; font-weight: 800; z-index: 2; border-right: 2px solid #FFC2DA; color: #C2306C; white-space: normal; min-width: 110px;
+}}
+.workout-table th:first-child {{ background: #F0568F; color: #FFFFFF; z-index: 3; }}
+</style>
+{html_raw.replace('class="dataframe"', 'class="workout-table"')}
+</div>"""
             
             # Выводим готовую таблицу на экран телефона
             st.write(custom_table_html, unsafe_allow_html=True)
@@ -109,7 +296,7 @@ with tab_view:
                 st.session_state.workout_db.to_csv(DATA_FILE, index=False)
                 st.rerun()
     else:
-        st.info("Таблица пуста. Перейдите на вкладку 'Добавить запись', чтобы внесить первые данные.")
+        st.info("🐱 Таблица пуста. Перейдите на вкладку 'Добавить запись', чтобы внести первые данные.")
 
 # --- ВКЛАДКА 2: ВВОД ДАННЫХ С ТЕЛЕФОНА ---
 with tab_add:
