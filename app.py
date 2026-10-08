@@ -53,11 +53,28 @@ with tab_view:
             # Заменяем пустоты на прочерки
             pivot_df = pivot_df.fillna("—")
             
-            # ВОЗВРАЩАЕМ КРАСИВЫЙ ОРИГИНАЛЬНЫЙ ВИД, но скрываем цифры 0, 1 через hide_index=True
+            # ИСПРАВЛЕНИЕ: Создаем конфигурацию столбцов с автоматическим переносом текста строк
+            col_config = {
+                "Упражнение": st.column_config.TextColumn(
+                    "Упражнение", 
+                    pinned=True, # Закрепляем первый столбец
+                    width="medium"
+                )
+            }
+            
+            # Для каждого столбца с датой включаем режим переноса текста wrap_text=True
+            for col in date_cols:
+                col_config[col] = st.column_config.TextColumn(
+                    col,
+                    wrap_text=True  # Включаем перенос строк внутри стандартного st.dataframe
+                )
+            
+            # Выводим оригинальный красивый вид со скрытыми цифрами и ПЕРЕНОСОМ строк
             st.dataframe(
                 pivot_df, 
                 use_container_width=True, 
-                hide_index=True
+                hide_index=True,
+                column_config=col_config
             )
             
             st.write("---")
