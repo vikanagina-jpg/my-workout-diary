@@ -17,6 +17,10 @@ if "workout_db" not in st.session_state:
     else:
         st.session_state.workout_db = pd.DataFrame(columns=["Дата", "Упражнение", "Результат"])
 
+# Принудительно чистим базу от старых американских искажений дат "8.1"
+if not st.session_state.workout_db.empty:
+    st.session_state.workout_db["Дата"] = st.session_state.workout_db["Дата"].astype(str).replace("8.1", "08.10")
+
 df = st.session_state.workout_db
 
 st.title("🏋️‍♂️ Мой Блокнот Тренировок")
@@ -35,13 +39,13 @@ with tab_view:
             df_view["Упражнение"] = df_view["Упражнение"].astype(str)
             df_view["Результат"] = df_view["Результат"].astype(str)
             
-            # НАДЕЖНОЕ ИСПРАВЛЕНИЕ: Соединяем подходы через красивый разделитель со стрелкой
-            grouped = df_view.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: "  ➔  ".join(x)).reset_index()
+            # НАДЕЖНОЕ ОБЪЕДИНЕНИЕ: Используем HTML-тег <br> для гарантированного переноса строки внутри ячейки
+            grouped = df_view.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: "<br>".join(x)).reset_index()
             
-            # Превращаем в кросс-таблицу
+            # Превращаем в кросс-таблицу "Упражнение | Дата1 | Дата2..."
             pivot_df = grouped.pivot(index="Упражнение", columns="Дата", values="Результат").reset_index()
             
-            # Сортируем даты по порядку (новые будут справа)
+            # Сортируем даты по порядку (новые будут добавляться справа)
             date_cols = sorted([col for col in pivot_df.columns if col != "Упражнение"])
             final_cols = ["Упражнение"] + date_cols
             pivot_df = pivot_df[final_cols]
@@ -49,29 +53,39 @@ with tab_view:
             # Заменяем пустоты на прочерки
             pivot_df = pivot_df.fillna("—")
             
-            # Жестко настраиваем закрепление БЕЗ ломающихся параметров переноса текста
-            col_config = {
-                "Упражнение": st.column_config.TextColumn(
-                    "Упражнение", 
-                    pinned=True, 
-                    width="medium"
-                )
-            }
+            # СТРОИМ ЧИСТУЮ HTML ТАБЛИЦУ: Скрываем индексы 0 и 1 (index=False)
+            html_raw = pivot_df.to_html(index=False, escape=False)
             
-            # Выводим красивую, стабильную таблицу без лишних индексов 0 и 1
-            st.dataframe(
-                pivot_df, 
-                use_container_width=True, 
-                hide_index=True,
-                column_config=col_config
-            )
+            # Добавляем CSS-стили для красивого отображения и закрепления первого столбца на телефоне
+            custom_table_html = f"""
+            <div style="overflow-x: auto; max-width: 100%; border: 1px solid #ccd1d9; border-radius: 4px;">
+                <style>
+                    .workout-table {{ width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px; }}
+                    .workout-table th {{ background-color: #f0f2f6; padding: 12px 10px; border: 1px solid #ccd1d9; font-weight: bold; text-align: left; }}
+                    .workout-table td {{ padding: 12px 10px; border: 1px solid #ccd1d9; text-align: left; vertical-align: top; line-height: 1.4; }}
+                    /* Делаем первый столбец намертво закрепленным при скролле вбок */
+                    .workout-table th:first-child, .workout-table td:first-child {{
+                        position: sticky; left: 0; background-color: #ffffff; font-weight: bold; z-index: 2; border-right: 2px solid #ccd1d9;
+                    }}
+                    .workout-table th:first-child {{ background-color: #f0f2f6; z-index: 3; }}
+                </style>
+                {html_raw.replace('class="dataframe"', 'class="workout-table"')}
+            </div>
+            """
+            
+            # Выводим готовую таблицу на экран телефона
+            st.write(custom_table_html, unsafe_allow_html=True)
             
             st.write("---")
             
-            # КНОПКА СКАЧИВАНИЯ ТАБЛИЦЫ В EXCEL
+            # КНОПКА СКАЧИВАНИЯ ТАБЛИЦЫ В EXCEL (внутри Excel переносы тоже будут работать через \n)
+            excel_pivot = pivot_df.copy()
+            for col in date_cols:
+                excel_pivot[col] = excel_pivot[col].str.replace("<br>", "\n")
+                
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                pivot_df.to_excel(writer, index=False, sheet_name='Тренировки')
+                excel_pivot.to_excel(writer, index=False, sheet_name='Тренировки')
             
             st.download_button(
                 label="📥 Скачать таблицу в Excel (для отправки)",
