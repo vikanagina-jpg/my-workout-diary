@@ -17,6 +17,10 @@ if "workout_db" not in st.session_state:
     else:
         st.session_state.workout_db = pd.DataFrame(columns=["Дата", "Упражнение", "Результат"])
 
+# Исправляем накопившиеся ошибки в датах, если они записались криво
+if not st.session_state.workout_db.empty:
+    st.session_state.workout_db["Дата"] = st.session_state.workout_db["Дата"].astype(str).replace("8.1", "08.10")
+
 df = st.session_state.workout_db
 
 st.title("🏋️‍♂️ Мой Блокнот Тренировок")
@@ -35,13 +39,13 @@ with tab_view:
             df_view["Упражнение"] = df_view["Упражнение"].astype(str)
             df_view["Результат"] = df_view["Результат"].astype(str)
             
-            # Соединяем подходы через обычный перенос строки
+            # Соединяем подходы через перенос строки
             grouped = df_view.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: "\n".join(x)).reset_index()
             
             # Превращаем в кросс-таблицу
             pivot_df = grouped.pivot(index="Упражнение", columns="Дата", values="Результат").reset_index()
             
-            # Сортируем даты-столбцы по порядку (новые будут добавляться справа)
+            # Сортируем даты по порядку (новые будут справа)
             date_cols = sorted([col for col in pivot_df.columns if col != "Упражнение"])
             final_cols = ["Упражнение"] + date_cols
             pivot_df = pivot_df[final_cols]
@@ -49,24 +53,16 @@ with tab_view:
             # Заменяем пустоты на прочерки
             pivot_df = pivot_df.fillna("—")
             
-            # ИСПРАВЛЕНИЕ: Выводим HTML-таблицу БЕЗ технических индексов (скрываем цифры 0, 1 и слово Дата)
-            html_table = pivot_df.to_html(index=False, escape=False)
-            
-            # Добавляем немного красоты: рамки и выравнивание, чтобы на телефоне смотрелось аккуратно
-            styled_html = f"""
-            <style>
-                table {{ width: 100%; border-collapse: collapse; font-family: sans-serif; }}
-                th {{ background-color: #f0f2f6; padding: 10px; border: 1px solid #ccd1d9; text-align: left; }}
-                td {{ padding: 10px; border: 1px solid #ccd1d9; white-space: pre-wrap; text-align: left; vertical-align: top; }}
-            </style>
-            {html_table}
-            """
-            st.markdown(styled_html, unsafe_allow_html=True)
+            # ВОЗВРАЩАЕМ КРАСИВЫЙ ОРИГИНАЛЬНЫЙ ВИД, но скрываем цифры 0, 1 через hide_index=True
+            st.dataframe(
+                pivot_df, 
+                use_container_width=True, 
+                hide_index=True
+            )
             
             st.write("---")
             
             # КНОПКА СКАЧИВАНИЯ ТАБЛИЦЫ В EXCEL
-            # Переводим кросс-таблицу в байты Excel
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                 pivot_df.to_excel(writer, index=False, sheet_name='Тренировки')
