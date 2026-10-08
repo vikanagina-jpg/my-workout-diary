@@ -39,11 +39,14 @@ with tab_view:
             df_view["Упражнение"] = df_view["Упражнение"].astype(str)
             df_view["Результат"] = df_view["Результат"].astype(str)
             
-            # НАДЕЖНОЕ ОБЪЕДИНЕНИЕ: Используем HTML-тег <br> для гарантированного переноса строки внутри ячейки
+            # Объединение подходов через HTML-тег <br> для гарантированного переноса строки внутри ячейки
             grouped = df_view.groupby(["Упражнение", "Дата"])["Результат"].apply(lambda x: "<br>".join(x)).reset_index()
             
             # Превращаем в кросс-таблицу "Упражнение | Дата1 | Дата2..."
             pivot_df = grouped.pivot(index="Упражнение", columns="Дата", values="Результат").reset_index()
+            
+            # ИСПРАВЛЕНИЕ: Удаляем слово "Дата" над левым верхним углом таблицы
+            pivot_df.columns.name = None
             
             # Сортируем даты по порядку (новые будут добавляться справа)
             date_cols = sorted([col for col in pivot_df.columns if col != "Упражнение"])
@@ -53,17 +56,17 @@ with tab_view:
             # Заменяем пустоты на прочерки
             pivot_df = pivot_df.fillna("—")
             
-            # СТРОИМ ЧИСТУЮ HTML ТАБЛИЦУ: Скрываем индексы 0 и 1 (index=False)
+            # Строим чистую HTML таблицу без технических индексов 0 и 1
             html_raw = pivot_df.to_html(index=False, escape=False)
             
-            # Добавляем CSS-стили для красивого отображения и закрепления первого столбца на телефоне
+            # CSS-стили для красивого отображения и закрепления первого столбца на телефоне
             custom_table_html = f"""
             <div style="overflow-x: auto; max-width: 100%; border: 1px solid #ccd1d9; border-radius: 4px;">
                 <style>
                     .workout-table {{ width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px; }}
                     .workout-table th {{ background-color: #f0f2f6; padding: 12px 10px; border: 1px solid #ccd1d9; font-weight: bold; text-align: left; }}
                     .workout-table td {{ padding: 12px 10px; border: 1px solid #ccd1d9; text-align: left; vertical-align: top; line-height: 1.4; }}
-                    /* Делаем первый столбец намертво закрепленным при скролле вбок */
+                    /* Закрепляем первый столбец намертво при скролле вбок */
                     .workout-table th:first-child, .workout-table td:first-child {{
                         position: sticky; left: 0; background-color: #ffffff; font-weight: bold; z-index: 2; border-right: 2px solid #ccd1d9;
                     }}
