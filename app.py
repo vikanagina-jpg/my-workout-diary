@@ -4,6 +4,9 @@ from datetime import datetime
 import html
 import io
 import os
+import json
+import gspread
+from google.oauth2.service_account import Credentials
 
 # Настройка страницы под мобильные телефоны
 st.set_page_config(
@@ -89,30 +92,22 @@ h2, h3, [data-testid="stHeading"] h3 {
     font-weight: 800 !important;
 }
 
-/* ============================================================
-   ВКЛАДКИ (исправлено: компактные центрированные вкладки,
-   больше не обрезаются)
-   ============================================================ */
-
+/* Вкладки */
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px;
     background: transparent;
     border-bottom: none;
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
 }
 
 .stTabs [data-baseweb="tab"] {
+    flex: 1 1 0;
     height: 48px;
-    padding: 0 18px;
     justify-content: center;
     background: #FFFFFF;
     border: 2px solid var(--sand);
     border-radius: 16px;
     color: var(--pumpkin-deep);
     font-weight: 800;
-    box-sizing: border-box;
 }
 
 .stTabs [data-baseweb="tab"] p {
@@ -305,7 +300,7 @@ hr { border-color: var(--sand) !important; }
     .pumpkin-header svg { width: 64px; height: 62px; }
     .pumpkin-header .title { font-size: 22px; }
     .pumpkin-header .subtitle { font-size: 12px; }
-    .stTabs [data-baseweb="tab"] { height: 44px; padding: 0 12px; }
+    .stTabs [data-baseweb="tab"] { height: 44px; }
     .stTabs [data-baseweb="tab"] p { font-size: 13px; }
     [data-testid="stRadio"] label { padding: 7px 9px; }
     [data-testid="stRadio"] label p { font-size: 13px !important; }
@@ -355,37 +350,117 @@ st.markdown(PUMPKIN_HEADER, unsafe_allow_html=True)
 
 
 # ============================================================
-# 💾 ХРАНЕНИЕ
+# ☁️ GOOGLE SHEETS — ПОСТОЯННОЕ ХРАНИЛИЩЕ
 # ============================================================
 
-DATA_FILE = "workout_diary_storage.csv"
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+
+
+@st.cache_resource(show_spinner=False)
+def get_gsheet_client():
+    """
+    Подключается к Google Sheets.
+    Читает ключ сервисного аккаунта из st.secrets или из переменных окружения.
+    """
+    creds_dict = None
+
+    # 1) Пытаемся взять из st.secrets (Streamlit secrets)
+    try:
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+    except Exception:
+        pass
+
+    # 2) Если нет — берём из переменных окружения
+    if creds_dict is None:
+        raw = os.environ.get("GCP_SERVICE_ACCOUNT_JSON", "")
+        if raw:
+            creds_dict = json.loads(raw)
+
+    if creds_dict is None:
+        raise RuntimeError(
+            "Не найден ключ сервисного аккаунта. "
+            "Проверьте, что в Render добавлена переменная "
+            "GCP_SERVICE_ACCOUNT_JSON с содержимым JSON-файла."
+        )
+
+    # Заменяем переносы в private_key, если пришли экранированные
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+    creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+    return gspread.authorize(creds)
+
+
+@st.cache_resource(show_spinner=False)
+def get_worksheet():
+    """Возвращает лист 'data' в вашей таблице."""
+    sheet_id = os.environ.get("GSHEET_ID", "").strip()
+    if not sheet_id:
+        raise RuntimeError(
+            "Не найден ID Google-таблицы. "
+            "Проверьте переменную GSHEET_ID в Render."
+        )
+    client = get_gsheet_client()
+    sh = client.open_by_key(sheet_id)
+    return sh.worksheet("data")
+
+
+def load_from_gsheet():
+    """Читает все строки из Google Sheets и возвращает DataFrame."""
+    ws = get_worksheet()
+    rows = ws.get_all_values()
+
+    if len(rows) <= 1:
+        return pd.DataFrame(columns=["Дата", "Упражнение", "Результат"])
+
+    header = rows[0]
+    body = rows[1:]
+    df = pd.DataFrame(body, columns=header[:3] if len(header) >= 3 else ["Дата", "Упражнение", "Результат"])
+
+    # Оставляем только три нужных столбца
+    for col in ["Дата", "Упражнение", "Результат"]:
+        if col not in df.columns:
+            df[col] = ""
+
+    df = df[["Дата", "Упражнение", "Результат"]].astype(str)
+    df = df[(df["Дата"] != "") | (df["Упражнение"] != "") | (df["Результат"] != "")]
+    return df.reset_index(drop=True)
+
+
+def save_to_gsheet(df):
+    """Полностью перезаписывает лист 'data' содержимым DataFrame."""
+    ws = get_worksheet()
+    ws.clear()
+
+    values = [["Дата", "Упражнение", "Результат"]]
+    for _, row in df.iterrows():
+        values.append([
+            str(row.get("Дата", "")),
+            str(row.get("Упражнение", "")),
+            str(row.get("Результат", "")),
+        ])
+    ws.update(values, "A1")
+
+
+# ============================================================
+# 💾 ИНИЦИАЛИЗАЦИЯ БАЗЫ
+# ============================================================
 
 if "workout_db" not in st.session_state:
-    if os.path.exists(DATA_FILE):
-        try:
-            st.session_state.workout_db = pd.read_csv(
-                DATA_FILE,
-                dtype={"Дата": str, "Упражнение": str, "Результат": str}
-            )
-        except Exception:
-            st.session_state.workout_db = pd.DataFrame(
-                columns=["Дата", "Упражнение", "Результат"]
-            )
-    else:
+    try:
+        st.session_state.workout_db = load_from_gsheet()
+    except Exception as e:
+        st.error(
+            "⚠️ Не удалось подключиться к Google Sheets. "
+            f"Подробности: {e}"
+        )
         st.session_state.workout_db = pd.DataFrame(
             columns=["Дата", "Упражнение", "Результат"]
         )
-
-if not st.session_state.workout_db.empty:
-    st.session_state.workout_db["Дата"] = (
-        st.session_state.workout_db["Дата"].astype(str).replace("8.1", "08.10")
-    )
-    st.session_state.workout_db["Упражнение"] = (
-        st.session_state.workout_db["Упражнение"].astype(str)
-    )
-    st.session_state.workout_db["Результат"] = (
-        st.session_state.workout_db["Результат"].astype(str)
-    )
 
 
 # ============================================================
@@ -402,8 +477,11 @@ def date_key(d):
 
 
 def save_database():
-    """Сохраняет текущую базу."""
-    st.session_state.workout_db.to_csv(DATA_FILE, index=False)
+    """Сохраняет текущую базу в Google Sheets."""
+    try:
+        save_to_gsheet(st.session_state.workout_db)
+    except Exception as e:
+        st.error(f"⚠️ Не удалось сохранить данные в Google Sheets: {e}")
 
 
 def delete_record(index):
@@ -522,11 +600,7 @@ def build_pivot(data):
 
 
 def parse_import_file(uploaded_file):
-    """
-    Разбирает Excel/CSV-выгрузку из старого приложения.
-    Возвращает DataFrame в формате: Дата, Упражнение, Результат.
-    """
-    # Определяем тип файла
+    """Разбирает Excel/CSV-выгрузку из старого приложения."""
     name = uploaded_file.name.lower()
 
     if name.endswith(".csv"):
@@ -534,9 +608,8 @@ def parse_import_file(uploaded_file):
     else:
         raw = pd.read_excel(uploaded_file, dtype=str)
 
-    # Первый столбец — упражнение, остальные — даты
     if raw.shape[1] < 2:
-        raise ValueError("Файл слишком маленький — нужен минимум 1 столбец упражнений и 1 столбец дат.")
+        raise ValueError("Файл слишком маленький.")
 
     exercise_col = raw.columns[0]
     date_cols = list(raw.columns[1:])
@@ -556,11 +629,9 @@ def parse_import_file(uploaded_file):
 
             cell_str = str(cell).strip()
 
-            # Пустые ячейки
             if cell_str in ("", "—", "-", "nan", "None"):
                 continue
 
-            # Разбиваем ячейку по <br> или \n
             parts = []
             for chunk in cell_str.replace("\r\n", "\n").replace("<br>", "\n").split("\n"):
                 chunk = chunk.strip()
@@ -599,7 +670,6 @@ tab_view, tab_add, tab_import = st.tabs(
 
 with tab_view:
 
-    # Отмена последнего удаления
     last = st.session_state.get("last_deleted")
     if last:
         row = last["row"]
@@ -632,7 +702,6 @@ with tab_view:
         else:
             delete_mode = False
 
-        # ---- ВИД 1: ПО ДНЯМ ----
         if view_mode == "📅 Дни":
             st.subheader("Журнал по дням")
             dates = sorted(
@@ -649,7 +718,6 @@ with tab_view:
                 ):
                     render_groups(sub, "Упражнение", f"d{d}", delete_mode)
 
-        # ---- ВИД 2: ПО УПРАЖНЕНИЯМ ----
         elif view_mode == "💪 Упражнения":
             st.subheader("История упражнения")
             exercises = sorted(df["Упражнение"].unique().tolist())
@@ -664,7 +732,6 @@ with tab_view:
             st.caption(f"Дней с этим упражнением: {sub['Дата'].nunique()}")
             render_groups(sub, "Дата", "ex", delete_mode)
 
-        # ---- ВИД 3: ОБЩАЯ ТАБЛИЦА ----
         elif view_mode == "📊 Таблица":
             st.subheader("Общая таблица")
             st.caption(
@@ -715,7 +782,6 @@ with tab_view:
                 pivot_df = None
                 date_cols = []
 
-            # Скачивание в Excel
             if pivot_df is not None:
                 st.write("---")
                 excel_pivot = pivot_df.copy()
@@ -903,7 +969,6 @@ with tab_import:
                     hide_index=True
                 )
 
-                # Проверка на дубли с текущей базой
                 existing = st.session_state.workout_db.copy()
                 if not existing.empty:
                     existing_keys = set(
@@ -942,7 +1007,6 @@ with tab_import:
                         use_container_width=True,
                         key="import_confirm_button"
                     ):
-                        # Отфильтровываем дубликаты
                         mask = [
                             k not in existing_keys
                             for k in preview_keys
