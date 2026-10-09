@@ -512,6 +512,62 @@ def build_pivot(data):
     return pivot, cols
 
 
+def parse_import_file(uploaded_file):
+    """
+    Разбирает Excel/CSV-выгрузку из старого приложения.
+    Возвращает DataFrame в формате: Дата, Упражнение, Результат.
+    """
+    # Определяем тип файла
+    name = uploaded_file.name.lower()
+
+    if name.endswith(".csv"):
+        raw = pd.read_csv(uploaded_file, dtype=str)
+    else:
+        raw = pd.read_excel(uploaded_file, dtype=str)
+
+    # Первый столбец — упражнение, остальные — даты
+    if raw.shape[1] < 2:
+        raise ValueError("Файл слишком маленький — нужен минимум 1 столбец упражнений и 1 столбец дат.")
+
+    exercise_col = raw.columns[0]
+    date_cols = list(raw.columns[1:])
+
+    rows = []
+    for _, row in raw.iterrows():
+        exercise = str(row[exercise_col]).strip()
+        if not exercise or exercise.lower() == "nan":
+            continue
+
+        for date_col in date_cols:
+            date_str = str(date_col).strip()
+            cell = row[date_col]
+
+            if pd.isna(cell):
+                continue
+
+            cell_str = str(cell).strip()
+
+            # Пустые ячейки
+            if cell_str in ("", "—", "-", "nan", "None"):
+                continue
+
+            # Разбиваем ячейку по <br> или \n
+            parts = []
+            for chunk in cell_str.replace("\r\n", "\n").replace("<br>", "\n").split("\n"):
+                chunk = chunk.strip()
+                if chunk and chunk not in ("—", "-"):
+                    parts.append(chunk)
+
+            for part in parts:
+                rows.append({
+                    "Дата": date_str,
+                    "Упражнение": exercise,
+                    "Результат": part,
+                })
+
+    return pd.DataFrame(rows, columns=["Дата", "Упражнение", "Результат"])
+
+
 # ============================================================
 # 📌 АКТУАЛЬНАЯ БАЗА
 # ============================================================
@@ -523,7 +579,9 @@ df = st.session_state.workout_db
 # ВКЛАДКИ
 # ============================================================
 
-tab_view, tab_add = st.tabs(["📋 Тренировки", "➕ Добавить запись"])
+tab_view, tab_add, tab_import = st.tabs(
+    ["📋 Тренировки", "➕ Добавить запись", "📤 Импорт"]
+)
 
 
 # ============================================================
@@ -546,7 +604,7 @@ with tab_view:
     if df.empty:
         st.info(
             "🎃 Записей нет. Перейдите на вкладку "
-            "'Добавить запись', чтобы внести первые данные."
+            "'Добавить запись' или '📤 Импорт', чтобы внести первые данные."
         )
     else:
         view_mode = st.radio(
@@ -785,3 +843,136 @@ with tab_add:
 
                 save_database()
                 st.success(f"✅ Записано: {final_exercise} — {res_string}")
+
+
+# ============================================================
+# 📤 ВКЛАДКА ИМПОРТА
+# ============================================================
+
+with tab_import:
+
+    st.subheader("Импорт данных из старого приложения")
+    st.caption(
+        "Загрузите Excel-файл (`.xlsx`), выгруженный из старого "
+        "приложения кнопкой «📥 Скачать таблицу в Excel», "
+        "или CSV в том же формате. Приложение разберёт файл и "
+        "добавит все записи в текущую базу."
+    )
+
+    uploaded_file = st.file_uploader(
+        "Выберите файл",
+        type=["xlsx", "xls", "csv"],
+        key="import_file_uploader"
+    )
+
+    if uploaded_file is not None:
+
+        try:
+            preview_df = parse_import_file(uploaded_file)
+        except Exception as e:
+            st.error(f"Не удалось разобрать файл: {e}")
+            preview_df = None
+
+        if preview_df is not None:
+
+            if preview_df.empty:
+                st.warning(
+                    "Файл разобран, но записей в нём не найдено. "
+                    "Проверьте, что это выгрузка из приложения."
+                )
+            else:
+                st.success(
+                    f"Разобрано записей: **{len(preview_df)}**. "
+                    f"Упражнений: **{preview_df['Упражнение'].nunique()}**. "
+                    f"Дат: **{preview_df['Дата'].nunique()}**."
+                )
+
+                st.markdown("**Предпросмотр (первые 20 строк):**")
+                st.dataframe(
+                    preview_df.head(20),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Проверка на дубли с текущей базой
+                existing = st.session_state.workout_db.copy()
+                if not existing.empty:
+                    existing_keys = set(
+                        zip(
+                            existing["Дата"].astype(str),
+                            existing["Упражнение"].astype(str),
+                            existing["Результат"].astype(str),
+                        )
+                    )
+                else:
+                    existing_keys = set()
+
+                preview_keys = list(
+                    zip(
+                        preview_df["Дата"].astype(str),
+                        preview_df["Упражнение"].astype(str),
+                        preview_df["Результат"].astype(str),
+                    )
+                )
+
+                new_count = sum(1 for k in preview_keys if k not in existing_keys)
+                dup_count = len(preview_keys) - new_count
+
+                st.caption(
+                    f"Новых записей (которых ещё нет в базе): "
+                    f"**{new_count}**. "
+                    f"Дубликатов (будут пропущены): **{dup_count}**."
+                )
+
+                col_a, col_b = st.columns(2)
+
+                with col_a:
+                    if st.button(
+                        f"✅ Импортировать {new_count} записей",
+                        type="primary",
+                        use_container_width=True,
+                        key="import_confirm_button"
+                    ):
+                        # Отфильтровываем дубликаты
+                        mask = [
+                            k not in existing_keys
+                            for k in preview_keys
+                        ]
+                        to_add = preview_df[mask].copy()
+
+                        if to_add.empty:
+                            st.info("Нечего добавлять — все записи уже в базе.")
+                        else:
+                            st.session_state.workout_db = pd.concat(
+                                [st.session_state.workout_db, to_add],
+                                ignore_index=True
+                            )
+                            save_database()
+                            st.success(
+                                f"🎉 Импортировано {len(to_add)} записей! "
+                                f"Перейдите на вкладку «Тренировки»."
+                            )
+                            st.rerun()
+
+                with col_b:
+                    if st.button(
+                        "🗑 Очистить базу и импортировать заново",
+                        use_container_width=True,
+                        key="import_replace_button"
+                    ):
+                        st.session_state.workout_db = preview_df.copy()
+                        save_database()
+                        st.success(
+                            f"База заменена. Загружено {len(preview_df)} записей."
+                        )
+                        st.rerun()
+
+    st.write("---")
+    st.markdown(
+        "**Как это работает:**\n"
+        "1. Старое приложение → вкладка «Тренировки» → вид «📊 Таблица» → "
+        "кнопка «📥 Скачать таблицу в Excel».\n"
+        "2. Здесь загрузите скачанный `.xlsx`.\n"
+        "3. Проверьте предпросмотр.\n"
+        "4. Нажмите «Импортировать» — данные добавятся, дубликаты пропустятся."
+    )
