@@ -89,21 +89,30 @@ h2, h3, [data-testid="stHeading"] h3 {
     font-weight: 800 !important;
 }
 
+/* ============================================================
+   ВКЛАДКИ (исправлено: компактные центрированные вкладки,
+   больше не обрезаются)
+   ============================================================ */
+
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px;
     background: transparent;
     border-bottom: none;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
 }
 
 .stTabs [data-baseweb="tab"] {
-    flex: 1 1 0;
     height: 48px;
+    padding: 0 18px;
     justify-content: center;
     background: #FFFFFF;
     border: 2px solid var(--sand);
     border-radius: 16px;
     color: var(--pumpkin-deep);
     font-weight: 800;
+    box-sizing: border-box;
 }
 
 .stTabs [data-baseweb="tab"] p {
@@ -296,7 +305,7 @@ hr { border-color: var(--sand) !important; }
     .pumpkin-header svg { width: 64px; height: 62px; }
     .pumpkin-header .title { font-size: 22px; }
     .pumpkin-header .subtitle { font-size: 12px; }
-    .stTabs [data-baseweb="tab"] { height: 44px; }
+    .stTabs [data-baseweb="tab"] { height: 44px; padding: 0 12px; }
     .stTabs [data-baseweb="tab"] p { font-size: 13px; }
     [data-testid="stRadio"] label { padding: 7px 9px; }
     [data-testid="stRadio"] label p { font-size: 13px !important; }
